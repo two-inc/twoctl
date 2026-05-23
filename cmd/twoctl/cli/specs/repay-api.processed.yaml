@@ -1,0 +1,1878 @@
+openapi: 3.0.3
+info:
+  title: Two Repay API
+  description: |
+    ## Sequence Diagram
+
+    [**Repayment Terms Guide**](/docs/guides/setting-repayment-terms/)
+
+    ## Overview and usage:
+
+    This API is designed for the purpose of creating and managing repayment accounts and repayment plans.
+
+    A repayment account stores the billing details of buyers, which are used to issue invoices and follow up for incoming payments.
+
+    A business can have one or multiple repayment accounts, each of which should have a corresponding account record in the merchant's system.
+
+    A repayment plan represents the receivable purchased from merchants and is expected to be paid by buyers over time. It is a collection of instalments, and the instalments of different repayment plans can be invoiced together.
+
+    The Repayment Plans fulfilled via this API will be invoiced and distributed to the Buyers the following 3-36 months.
+
+    Instalments created by the same merchant for the same repayment account will be invoiced together, typically on the 1st day of each calendar month, to allow Buyers to pay them together with a single payment.
+
+    You will receive a net payout from us upon fulfilment of the repayment plan, at the end of your negotiated payout cycle.
+
+    ###  The Repay API provides the following features:
+
+    - Creation and update of repayment accounts, including their contact details
+    - Creation and fulfilment of new repayment plans
+    - Cancellation of existing repayment plans to prevent invoicing of uninvoiced instalments
+    - Credit check of buyers to understand the terms under which a specific repayment plan amount is supported
+    - Preview of repayment plans with a breakdown of instalments
+    - Polling of the funding and fulfilment status of repayment plans
+    - Crediting of specific repayment plans
+
+    ### Step 1: Identify the Business for Which You're Creating the Account
+
+    - To help your buyers select their company's legal name, address, and national ID. You can use the Search API endpoint to search for the company's name, which is documented here: [**Search Company Name**](/docs/api/company/company-search/)
+    - Additionally, you can use the company address endpoint to access the address information, which is available here: [**Get Company**](/docs/api/company/get-company-company-canonical-or-lookup-id-get/)
+
+    ### Step 2: Creation of repayment account
+
+    - The repayment account is created by the merchant using details inputted by their buyer using the [**create repayment account**](/docs/api/repay/create-repayment-account-account-post/) ` POST /account` endpoint
+    - You can create multiple repayment accounts for the same `buyer_company` if you would like each to receive seperate invoices.
+
+    ### Step 3: Credit check the planned repayment plan amount
+
+    - Once you have the total order amount being placed by the buyer. Call the [**credit check**](/docs/api/repay/credit-check-credit-check-post/) ` POST /credit-check` endpoint
+    - The API will then respond with under what conditions Two can provide an approved funding decision for this buyer and the given amount
+    - The API response will provide you with the maximum and minimum terms, and a maximum monthly amount that can be offered to the buyer
+
+    ### Step 4: Preview the repayment plan to see the instalment breakdown
+
+    **This step is optional**: You might want to show a breakdown of one or more tentative repayment plans to your buyer before they commit to one of them.
+
+    - Preview the repayment plans to show to the buyer through the [**create preview**](/docs/api/repay/create-repayment-plan-preview-plan-preview-post/) ` POST /preview` endpoint
+    - The API response will provide a list of instalments, including issue dates and amounts and tax subtotals, to be presented to your buyer
+    - This endpoint can be polled multiple times with different options but recommended to only call within the limitations of the credit risk response.
+
+    ### Step 5: Create the repayment plan and commit the buyer to pay back in instalments.
+
+    - A repayment plan can then be created by defining the following required terms through the [**create repayment plan**](/docs/api/repay/create-repayment-plan-plan-post/) `POST /plan` endpoint :
+    - The number of payment periods associated with this set of terms. (Number Of Periods [ 1 ... 36 ])
+    - The time slice over which payments are to be made as part of a repayment plan. (currently we only support Monthly cadence)
+
+    ### Step 6: Poll the repayment status
+
+    - You are expected to poll the [**repayment status**](/docs/api/repay/get-repayment-plan-status-plan-repayment-plan-id-status-get/) `GET /status` endpoint until the API responds with an "Accepted" or "Rejected" funding decision
+    - Once funding has been "Accepted" proceed to **fulfilment**
+
+    ### Step 7: Fulfil the repayment plan
+
+    - Using the `PUT /fulfilment` endpoint you will [**finalise the repayment plan**](/docs/api/repay/fulfill-repayment-plan-plan-repayment-plan-id-fulfilment-put/) and initiate the payout process
+    - The next business day your payout will incorporate this repayment plan minus the agreed fees.
+    - If you have negotiated a payout cadence that is not DAILY, you will receive the payout for this repayment plan minus the fees at the end of your current payout cycle.
+
+    ## Environments
+
+    ### Testing
+
+    [https://api.sandbox.two.inc/repay/v1](https://api.sandbox.two.inc/repay/v1/health)
+
+    Note: Read about our [sandbox environment specific behaviour](/docs/guides/sandbox-behaviour-page/).
+
+    ### Production
+
+    [https://api.two.inc/repay/v1](https://api.two.inc/repay/v1/health)
+  version: 1.0.0
+servers:
+  - url: https://api.sandbox.two.inc/repay/v1
+    description: Testing
+  - url: https://api.two.inc/repay/v1
+    description: Production
+paths:
+  /testing/send-invoices:
+    post:
+      tags:
+        - Sandbox testing
+      summary: Trigger Future Invoice
+      description: |-
+        **Only available in sandbox**
+
+        This endpoint can be called to trigger invoice generation and distribution with a specified cut off date in sandbox
+        and can be used to test invoicing behaviour when integrating with the API.
+        Normal invoicing rules will run and factor in:
+        * merchant-specific rules for the invoicing date within the billing cycle
+        * repayment account configuration rules for the due date
+        * invoicing grouping keys (if any) for specific plans for the repayment account
+
+        The endpoint will trigger invoicing as if it is running on the specified cut off date. This means it will identify
+        any instalments with an invoicing date between today and the given cut off date (inclusive) and generate invoices
+        for those instalments according to the factors mentioned above.
+
+        As the invoicing process is asynchronous, there will be a short delay after hitting this endpoint before invoices
+        are distributed. This delay will typically be 2 minutes.
+      operationId: trigger_future_invoice_testing_send_invoices_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TriggerFutureInvoiceRequest'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FutureInvoiceCreateResponse'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+      security:
+        - api-key: []
+  /plan:
+    post:
+      tags:
+        - Repayment Plans
+      summary: Create Repayment Plan
+      description: Create a new repayment plan.
+      operationId: create_repayment_plan_plan_post
+      parameters:
+        - description: A unique value generated by the client which the server uses to recognize subsequent retries of the same request
+          required: true
+          schema:
+            type: string
+            maxLength: 36
+            minLength: 1
+            title: Idempotency-Key
+            description: A unique value generated by the client which the server uses to recognize subsequent retries of the same request
+          name: Idempotency-Key
+          in: header
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RepaymentPlanRequest'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RepaymentPlanResponse'
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RepaymentPlanResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+      security:
+        - api-key: []
+  /plan/{repayment_plan_id}:
+    get:
+      tags:
+        - Repayment Plans
+      summary: Get Repayment Plan
+      operationId: get_repayment_plan_plan__repayment_plan_id__get
+      parameters:
+        - required: true
+          schema:
+            type: string
+            format: uuid
+            title: Repayment Plan Id
+          name: repayment_plan_id
+          in: path
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RepaymentPlanResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+      security:
+        - api-key: []
+    patch:
+      tags:
+        - Repayment Plans
+      summary: Update Repayment Plan
+      description: Update repayment plan.
+      operationId: update_repayment_plan_plan__repayment_plan_id__patch
+      parameters:
+        - required: true
+          schema:
+            type: string
+            format: uuid
+            title: Repayment Plan Id
+          name: repayment_plan_id
+          in: path
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RepaymentPlanUpdateRequest'
+        required: true
+      responses:
+        '204':
+          description: Successful Response
+        '404':
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+      security:
+        - api-key: []
+  /plan/{repayment_plan_id}/status:
+    get:
+      tags:
+        - Repayment Plans
+      summary: Get Repayment Plan Status
+      operationId: get_repayment_plan_status_plan__repayment_plan_id__status_get
+      parameters:
+        - required: true
+          schema:
+            type: string
+            format: uuid
+            title: Repayment Plan Id
+          name: repayment_plan_id
+          in: path
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RepaymentPlanStatusResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+      security:
+        - api-key: []
+  /plan/{repayment_plan_id}/invoices:
+    get:
+      tags:
+        - Repayment Plans
+      summary: Get Repayment Plan Invoice Details
+      operationId: get_repayment_plan_invoice_details_plan__repayment_plan_id__invoices_get
+      parameters:
+        - required: true
+          schema:
+            type: string
+            format: uuid
+            title: Repayment Plan Id
+          name: repayment_plan_id
+          in: path
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RepaymentPlanInvoiceStatusResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+      security:
+        - api-key: []
+  /plan/{repayment_plan_id}/cancellation:
+    put:
+      tags:
+        - Repayment Plans
+      summary: Cancel Repayment Plan
+      operationId: cancel_repayment_plan_plan__repayment_plan_id__cancellation_put
+      parameters:
+        - required: true
+          schema:
+            type: string
+            format: uuid
+            title: Repayment Plan Id
+          name: repayment_plan_id
+          in: path
+        - description: A unique value generated by the client which the server uses to recognize subsequent retries of the same request
+          required: true
+          schema:
+            type: string
+            maxLength: 36
+            minLength: 1
+            title: Idempotency-Key
+            description: A unique value generated by the client which the server uses to recognize subsequent retries of the same request
+          name: Idempotency-Key
+          in: header
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Cancellation'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Cancellation'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+      security:
+        - api-key: []
+  /plan/{repayment_plan_id}/fulfilment:
+    put:
+      tags:
+        - Repayment Plans
+      summary: Fulfill Repayment Plan
+      description: |-
+        Requests that Two marks the repayment plan as fulfilled.
+
+        This endpoint will submit a request for Two to mark the repayment plan as fulfilled (the HTTP 202 response code
+        indicates that Two has successfully received the request to fulfil this repayment plan). Note that fulfilment in
+        Two's systems will happen asynchronously, so your integration should check the repayment plan `fulfilment_status`
+        using the repayment plan status endpoint before marking the repayment plan as fulfilled (or fulfilled by Two) in
+        your own system.
+
+        * Before the fulfilment request is received for a given repayment plan, `fulfilment_status` in the repayment plan
+          status endpoint will show as `NOT_INITIATED`.
+        * Once the request has been received, but before it is considered fulfilled by Two, the status endpoint's
+        `fulfilment_status` will be marked as `PENDING`.
+        * When the fulfilment request has been completed in Two's systems, `fulfilment_status` will be `SUCCEEDED`.
+        * It is possible for `fulfilment_status` to show as `FAILED` if the credit decision for the plan has expired and Two
+          has reassessed the buyer for this plan and can no longer support this repayment plan.
+      operationId: fulfill_repayment_plan_plan__repayment_plan_id__fulfilment_put
+      parameters:
+        - required: true
+          schema:
+            type: string
+            format: uuid
+            title: Repayment Plan Id
+          name: repayment_plan_id
+          in: path
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RepaymentPlanFulfillment'
+      responses:
+        '202':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+      security:
+        - api-key: []
+  /plan/preview:
+    post:
+      tags:
+        - Repayment Plans
+      summary: Create Repayment Plan Preview
+      description: Request a preview of a repayment plan based on key features of a plan including term length and total amount.
+      operationId: create_repayment_plan_preview_plan_preview_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RepaymentPlanPreviewRequest'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RepaymentPlanPreviewResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+      security:
+        - api-key: []
+  /plan/{repayment_plan_id}/instalment/{instalment_id}:
+    put:
+      tags:
+        - Repayment Plans
+      summary: Update Instalment
+      operationId: update_instalment_plan__repayment_plan_id__instalment__instalment_id__put
+      parameters:
+        - required: true
+          schema:
+            type: string
+            format: uuid
+            title: Repayment Plan Id
+          name: repayment_plan_id
+          in: path
+        - required: true
+          schema:
+            type: string
+            format: uuid
+            title: Instalment Id
+          name: instalment_id
+          in: path
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/InstalmentUpdateRequest'
+        required: true
+      responses:
+        '204':
+          description: Successful Response
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+      security:
+        - api-key: []
+  /account:
+    post:
+      tags:
+        - Repayment Accounts
+      summary: Create Repayment Account
+      description: |-
+        Creates a repayment account for use with repayment plan invoicing.
+
+        When a repayment plan is created, an existing repayment account must be referenced. Then, whenever an instalment is
+        invoiced the referenced repayment account is used to determine the billing details for the invoice. Updating a
+        repayment account will affect subsequent invoices only.
+      operationId: create_repayment_account_account_post
+      parameters:
+        - description: A unique value generated by the client which the server uses to recognize subsequent retries of the same request
+          required: true
+          schema:
+            type: string
+            maxLength: 36
+            minLength: 1
+            title: Idempotency-Key
+            description: A unique value generated by the client which the server uses to recognize subsequent retries of the same request
+          name: Idempotency-Key
+          in: header
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RepaymentAccount'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RepaymentAccount'
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RepaymentAccount'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+      security:
+        - api-key: []
+  /account/{repayment_account_id}:
+    get:
+      tags:
+        - Repayment Accounts
+      summary: Get Repayment Account
+      operationId: get_repayment_account_account__repayment_account_id__get
+      parameters:
+        - required: true
+          schema:
+            type: string
+            format: uuid
+            title: Repayment Account Id
+          name: repayment_account_id
+          in: path
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RepaymentAccount'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+      security:
+        - api-key: []
+    put:
+      tags:
+        - Repayment Accounts
+      summary: Update Repayment Account
+      description: |-
+        Update the payment account information using the Two `repayment_account_id`.
+
+        As was stated when creating a payment account, it is strongly encouraged that the repayment accounts correspond to
+        existing accounts of your buyers in your system, so that Buyers have a place to change their contact details. You
+        are expected to provide the buyer company's national id and address, which you can easily get from [**Step
+        1**](/docs/api/repay/two-repay-api/).
+
+        Note that the due_in_days field can only be updated before any repayment plans have been fulfilled, otherwise a 409
+        error will be returned.
+      operationId: update_repayment_account_account__repayment_account_id__put
+      parameters:
+        - required: true
+          schema:
+            type: string
+            format: uuid
+            title: Repayment Account Id
+          name: repayment_account_id
+          in: path
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RepaymentAccountUpdate'
+        required: true
+      responses:
+        '204':
+          description: Successful Response
+        '409':
+          description: Conflict
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+      security:
+        - api-key: []
+  /invoice/{invoice_id}/pdf:
+    get:
+      tags:
+        - Invoices
+      summary: Get Invoice Document URL
+      description: Retrieve the URL of the invoice PDF for the given invoice ID.
+      operationId: get_invoice_document_url_invoice__invoice_id__pdf_get
+      parameters:
+        - required: true
+          schema:
+            type: string
+            format: uuid
+            title: Invoice Id
+          name: invoice_id
+          in: path
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InvoicePdfUrlResponse'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+      security:
+        - api-key: []
+  /invoice/{invoice_id}:
+    get:
+      tags:
+        - Invoices
+      summary: Get Invoice Details
+      operationId: get_invoice_details_invoice__invoice_id__get
+      parameters:
+        - required: true
+          schema:
+            type: string
+            format: uuid
+            title: Invoice Id
+          name: invoice_id
+          in: path
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InvoiceDetails'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+      security:
+        - api-key: []
+  /credit-check:
+    post:
+      tags:
+        - Credit Check
+      summary: Credit Check
+      description: |-
+        Use the `POST /credit-check` endpoint to evaluate the funding eligibility of a buyer based on the total value of a
+        prospective instalment plan and the frequency of invoicing for a prospective plan.
+
+        The API responds with the conditions under which Two can approve the funding, including the maximum and minimum
+        terms, as well as the maximum amount that can be offered per term (such as monthly).
+      operationId: credit_check_credit_check_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreditCheckRequest'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreditCheckResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+      security:
+        - api-key: []
+components:
+  schemas:
+    Address:
+      properties:
+        address_line_1:
+          type: string
+          title: Address Line 1
+        address_line_2:
+          type: string
+          title: Address Line 2
+        city:
+          type: string
+          title: City
+        region:
+          type: string
+          title: Region
+        postal_code:
+          type: string
+          title: Postal Code
+        country_code:
+          $ref: '#/components/schemas/CountryCode'
+      type: object
+      required:
+        - address_line_1
+        - city
+        - postal_code
+        - country_code
+      title: Address
+    Cancellation:
+      properties:
+        id:
+          type: string
+          maxLength: 40
+          minLength: 1
+          pattern: ^[a-zA-Z0-9\-_]+$
+          title: Id
+          readOnly: true
+        cancelled_at:
+          type: string
+          format: date-time
+          title: Cancelled At
+        cancelled_repayment_amount:
+          allOf:
+            - $ref: '#/components/schemas/Money'
+          title: Cancelled Repayment Amount
+          description: The sum of repayment amounts over all remaining installments (i.e. those not yet invoiced). Partially cancelling a repayment plan is not possible.
+          readOnly: true
+        currency:
+          allOf:
+            - $ref: '#/components/schemas/CurrencyCode'
+          readOnly: true
+        cancel_reason:
+          allOf:
+            - $ref: '#/components/schemas/CancellationReason'
+          default: TERMINATED
+      type: object
+      required:
+        - cancelled_at
+      title: Cancellation
+      description: A cancellation cancels the remaining parts of a repayment plan that has not yet been invoiced.
+    CancellationReason:
+      type: string
+      enum:
+        - TAX_CHANGES
+        - CREDIT_LIMITATION
+        - WRONG_DETAILS
+        - MIGRATION
+        - TERMINATED
+      title: CancellationReason
+      description: |-
+        Documents the reason for cancelling remaining instalments of a repayment plan.
+
+        Cancelling a repayment plan for any reason only cancels instalments in the
+        plan that do not yet have invoices.
+
+        `TERMINATED` is used by default if not explicitly provided.
+
+        * `TAX_CHANGES`: Sales tax (such as VAT) rules change part-way through a
+        repayment plan and you need to re-create the remainder of the repayment
+        plan using the new tax rates and amounts.
+        * `CREDIT_LIMITATION`: You intend to repurchase the repayment plan from Two
+        when we are unable to fund new repayment plans for a buyer so you can, for
+        example, continue to send the buyer a single invoice for all repayment
+        plans.
+        * `WRONG_DETAILS`: The repayment plan has incorrect details and you intend to
+        recreate the repayment plan with the correct details. Note that this
+        excludes incorrect contact details for the repayment account, which can be
+        updated using the repayment account endpoints without cancelling the
+        repayment plan.
+        * `MIGRATION`: The repayment plan has errors introduced while migrating
+        repayment plan tracking from external systems to the Two service and you
+        intend to recreate it without errors.
+        * `TERMINATED` (default): Repurchase a repayment plan from Two, or termination
+        of a repayment plan for other reasons. There is no expectation to recreate
+        the repayment plan at a later date.
+    Company:
+      properties:
+        trade_name:
+          type: string
+          maxLength: 40
+          minLength: 1
+          pattern: ^[a-zA-Z0-9\-_]+$
+          title: Trade Name
+          description: The name of the company as registered in the merchant's systems.
+        official_address:
+          $ref: '#/components/schemas/Address'
+        country_code:
+          $ref: '#/components/schemas/CountryCode'
+        national_identifier:
+          type: string
+          maxLength: 40
+          minLength: 1
+          pattern: ^[a-zA-Z0-9\-_]+$
+          title: National Identifier
+          description: The identifier for the company in the national company registries. For example, CRN in the United Kingdom and Org. nr. in Norway.
+      type: object
+      required:
+        - trade_name
+        - official_address
+        - country_code
+        - national_identifier
+      title: Company
+    CompanyUpdate:
+      properties:
+        trade_name:
+          type: string
+          maxLength: 40
+          minLength: 1
+          pattern: ^[a-zA-Z0-9\-_]+$
+          title: Trade Name
+          description: The name of the company as registered in the merchant's systems.
+        official_address:
+          $ref: '#/components/schemas/Address'
+      type: object
+      required:
+        - trade_name
+        - official_address
+      title: CompanyUpdate
+    CountryCode:
+      type: string
+      enum:
+        - AT
+        - BE
+        - DE
+        - DK
+        - FI
+        - FR
+        - GB
+        - NL
+        - 'NO'
+        - SE
+        - US
+      title: CountryCode
+      description: Country code in ISO 3166 Alpha-2 format.
+    CreditCheckRequest:
+      properties:
+        country_code:
+          $ref: '#/components/schemas/CountryCode'
+        national_identifier:
+          type: string
+          maxLength: 40
+          minLength: 1
+          pattern: ^[a-zA-Z0-9\-_]+$
+          title: National Identifier
+          description: The identifier for the company in the national company registries. For example, CRN in the United Kingdom and Org. nr. in Norway.
+        company_name:
+          type: string
+          title: Company Name
+          description: The name of the company.
+        amount:
+          allOf:
+            - $ref: '#/components/schemas/PositiveMoney'
+          title: Amount
+          description: The amount of credit to check against the given company details.
+        currency:
+          allOf:
+            - $ref: '#/components/schemas/CurrencyCode'
+          description: The currency of the credit check.
+          default: GBP
+        instalment_period:
+          allOf:
+            - $ref: '#/components/schemas/RepaymentPeriod'
+          description: The period over which the credit should be divided into instalments. Defaults to MONTHLY. Currently only MONTHLY is supported.
+      type: object
+      required:
+        - country_code
+        - national_identifier
+        - company_name
+        - amount
+      title: CreditCheckRequest
+    CreditCheckResponse:
+      properties:
+        minimum_instalments:
+          type: integer
+          title: Minimum Instalments
+          description: The minimum number of term instalments Two will provide for the queried amount of credit.
+        maximum_instalments:
+          type: integer
+          title: Maximum Instalments
+          description: The maximum number of term instalments Two will provide for the queried amount of credit.
+        maximum_instalment_amount:
+          $ref: '#/components/schemas/Money'
+        decision:
+          allOf:
+            - $ref: '#/components/schemas/CreditDecisionEnum'
+          description: Outcome of the credit check
+        currency:
+          $ref: '#/components/schemas/CurrencyCode'
+      type: object
+      required:
+        - minimum_instalments
+        - maximum_instalments
+        - maximum_instalment_amount
+        - decision
+        - currency
+      title: CreditCheckResponse
+      description: Details the credit level available to a buyer for a repayment plan based on the given `CreditCheckRequest`.
+    CreditDecisionEnum:
+      type: string
+      enum:
+        - APPROVED
+        - DECLINED
+      title: CreditDecisionEnum
+      description: An enumeration.
+    CurrencyCode:
+      type: string
+      enum:
+        - DKK
+        - EUR
+        - GBP
+        - NOK
+        - SEK
+        - USD
+      title: CurrencyCode
+      description: Alphabetic currency code according to ISO 4217.
+    Error:
+      properties:
+        description:
+          type: string
+          title: Description
+        code:
+          allOf:
+            - $ref: '#/components/schemas/ErrorCode'
+          default: ERROR
+      type: object
+      required:
+        - description
+      title: Error
+    ErrorCode:
+      type: string
+      enum:
+        - ERROR
+      title: ErrorCode
+      description: An enumeration.
+    FulfilmentStatus:
+      type: string
+      enum:
+        - NOT_INITIATED
+        - PENDING
+        - SUCCEEDED
+        - FAILED
+      title: FulfilmentStatus
+      description: An enumeration.
+    FundingStatus:
+      type: string
+      enum:
+        - PENDING
+        - ACCEPTED
+        - REJECTED
+      title: FundingStatus
+      description: An enumeration.
+    FutureInvoiceCreateResponse:
+      properties:
+        invoice_ids:
+          items:
+            type: string
+            format: uuid
+          type: array
+          title: Invoice Ids
+      type: object
+      required:
+        - invoice_ids
+      title: FutureInvoiceCreateResponse
+    HTTPValidationError:
+      properties:
+        detail:
+          items:
+            $ref: '#/components/schemas/ValidationError'
+          type: array
+          title: Detail
+      type: object
+      title: HTTPValidationError
+    Instalment:
+      properties:
+        id:
+          type: string
+          maxLength: 40
+          minLength: 1
+          pattern: ^[a-zA-Z0-9\-_]+$
+          title: Id
+          description: ID generated by Two when creating the resource.
+          readOnly: true
+        reference:
+          type: string
+          maxLength: 40
+          minLength: 1
+          pattern: ^[a-zA-Z0-9\-_]+$
+          title: Reference
+          description: The merchant's ID or reference for this instalment.
+        invoice_issue_date:
+          type: string
+          format: date
+          title: Invoice Issue Date
+          description: The date that the invoice containing this installment will be issued.
+        description:
+          type: string
+          title: Description
+        repayment_amount:
+          $ref: '#/components/schemas/PositiveMoney'
+        tax_subtotals:
+          $ref: '#/components/schemas/TaxSubtotalsPreview'
+      type: object
+      required:
+        - reference
+        - invoice_issue_date
+        - repayment_amount
+        - tax_subtotals
+      title: Instalment
+    InstalmentPaymentStatus:
+      properties:
+        instalment_id:
+          type: string
+          maxLength: 40
+          minLength: 1
+          pattern: ^[a-zA-Z0-9\-_]+$
+          title: Instalment Id
+          description: Unique ID of the instalment.
+          readOnly: true
+        invoice_details:
+          allOf:
+            - $ref: '#/components/schemas/InvoiceDetails'
+          title: Invoice Details
+          description: An object containing details about the invoice this instalment has been included in. Null if the instalment has not yet been included in any invoice.
+          readOnly: true
+        last_updated:
+          type: string
+          format: date-time
+          title: Last Updated
+          description: Last date and time this payment status was updated. Null if the instalment has not yet been included in any invoice.
+          readOnly: true
+      type: object
+      required:
+        - instalment_id
+      title: InstalmentPaymentStatus
+    InstalmentPreview:
+      properties:
+        repayment_amount:
+          $ref: '#/components/schemas/PositiveMoney'
+        invoice_issue_date:
+          type: string
+          format: date
+          title: Invoice Issue Date
+        tax_subtotals:
+          $ref: '#/components/schemas/TaxSubtotalsPreview'
+      type: object
+      required:
+        - repayment_amount
+        - invoice_issue_date
+        - tax_subtotals
+      title: InstalmentPreview
+    InstalmentUpdateRequest:
+      properties:
+        description:
+          type: string
+          maxLength: 500
+          title: Description
+          description: New description for the given instalment.
+      type: object
+      required:
+        - description
+      title: InstalmentUpdateRequest
+    InvoiceDetails:
+      properties:
+        invoice_id:
+          type: string
+          maxLength: 40
+          minLength: 1
+          pattern: ^[a-zA-Z0-9\-_]+$
+          title: Invoice Id
+          description: Unique ID of the invoice in Two's system.
+          readOnly: true
+        invoice_number:
+          type: string
+          title: Invoice Number
+          description: The invoice number that this instalment is included within.
+          readOnly: true
+        gross_amount:
+          allOf:
+            - $ref: '#/components/schemas/Money'
+          title: Gross Amount
+          description: Gross amount (inclusive of tax) of the invoice.
+          readOnly: true
+        net_amount:
+          allOf:
+            - $ref: '#/components/schemas/Money'
+          title: Net Amount
+          description: Net amount (exclusive of tax) of the invoice.
+          readOnly: true
+        tax_amount:
+          allOf:
+            - $ref: '#/components/schemas/Money'
+          title: Tax Amount
+          description: Total tax charged on the invoice.
+          readOnly: true
+        invoice_issue_date:
+          type: string
+          format: date
+          title: Invoice Issue Date
+          description: The date this invoice was issued.
+          readOnly: true
+        payment_reference:
+          type: string
+          title: Payment Reference
+          description: The payment reference for this invoice.
+          readOnly: true
+        payment_status:
+          type: string
+          title: Payment Status
+          description: A canonical representation of the payment status of this invoice.
+          readOnly: true
+        total_paid_amount:
+          allOf:
+            - $ref: '#/components/schemas/Money'
+          title: Total Paid Amount
+          description: Sum of payments against this invoice.
+          readOnly: true
+        total_credited_amount:
+          allOf:
+            - $ref: '#/components/schemas/Money'
+          title: Total Credited Amount
+          description: Sum of amount credited on this invoice.
+          readOnly: true
+        total_collected_amount:
+          allOf:
+            - $ref: '#/components/schemas/Money'
+          title: Total Collected Amount
+          description: Sum of amount collected for this invoice.
+          readOnly: true
+        total_recoursed_amount:
+          allOf:
+            - $ref: '#/components/schemas/Money'
+          title: Total Recoursed Amount
+          description: Sum of amount recoursed for this invoice.
+          readOnly: true
+        unpaid_amount:
+          allOf:
+            - $ref: '#/components/schemas/Money'
+          title: Unpaid Amount
+          description: Remaining balance to pay for this invoice.
+          readOnly: true
+      type: object
+      required:
+        - invoice_id
+        - gross_amount
+        - net_amount
+        - tax_amount
+        - invoice_issue_date
+        - payment_reference
+        - payment_status
+        - total_paid_amount
+        - total_credited_amount
+        - total_collected_amount
+        - total_recoursed_amount
+        - unpaid_amount
+      title: InvoiceDetails
+    InvoicePdfUrlResponse:
+      properties:
+        url:
+          type: string
+          title: Url
+      type: object
+      required:
+        - url
+      title: InvoicePdfUrlResponse
+    LineItem:
+      properties:
+        name:
+          type: string
+          title: Name
+        description:
+          type: string
+          title: Description
+        product_identifiers:
+          items:
+            $ref: '#/components/schemas/ProductIdentifier'
+          type: array
+          title: Product Identifiers
+        unit_price_amount:
+          $ref: '#/components/schemas/Money'
+        unit_discount_amount:
+          $ref: '#/components/schemas/Money'
+        tax_rate:
+          $ref: '#/components/schemas/TaxRate'
+        tax_class_name:
+          type: string
+          title: Tax Class Name
+        quantity:
+          type: string
+          pattern: ^-?[0-9]+(\.[0-9]{0,3})?
+          format: decimal
+          title: Quantity
+        quantity_unit_name:
+          type: string
+          title: Quantity Unit Name
+        line_item_type:
+          $ref: '#/components/schemas/LineItemType'
+      type: object
+      required:
+        - name
+        - product_identifiers
+        - unit_price_amount
+        - tax_rate
+        - tax_class_name
+        - quantity
+        - quantity_unit_name
+        - line_item_type
+      title: LineItem
+      description: A line item consists of one or more units of a specific product or service being purchased.
+    LineItemType:
+      type: string
+      enum:
+        - DIGITAL
+        - PHYSICAL
+        - SHIPPING_FEE
+        - GIFTCARD
+        - SERVICE
+        - FEE
+      title: LineItemType
+      description: An enumeration.
+    Money:
+      type: string
+      pattern: ^-?[0-9]+(\.[0-9]{0,2})?
+      format: decimal
+      title: Money
+      description: Decimal number. JSON number or string of the form '0.00'
+    MonthlyTerms:
+      properties:
+        period:
+          type: string
+          enum:
+            - MONTHLY
+          title: Period
+          description: The time slice over which payments are to be made as part of a repayment plan.
+        number_of_periods:
+          type: integer
+          maximum: 36.0
+          minimum: 1.0
+          title: Number Of Periods
+          description: The number of payment periods associated with this set of terms.
+      type: object
+      required:
+        - period
+        - number_of_periods
+      title: MonthlyTerms
+      description: |-
+        Defines key aspects of a repayment plan, such as the period over which instalments are created and the number of
+        instalments as part of that plan.
+    PositiveMoney:
+      type: string
+      pattern: ^-?[0-9]+(\.[0-9]{0,2})?
+      format: decimal
+      title: PositiveMoney
+      description: Strictly positive decimal number (greater than zero). JSON number or string of the form '0.00'
+    ProductIdentifier:
+      properties:
+        value:
+          type: string
+          title: Value
+        identifier_type:
+          $ref: '#/components/schemas/ProductIdentifierType'
+      type: object
+      required:
+        - value
+        - identifier_type
+      title: ProductIdentifier
+      description: |-
+        A string or number that identifies the product.
+
+        For any internal identifier, use the type `CUSTOM_IDENTIFIER`.
+    ProductIdentifierType:
+      type: string
+      enum:
+        - EAN
+        - GTIN
+        - SKU
+        - UPC
+        - JAN
+        - CUSTOM_IDENTIFIER
+      title: ProductIdentifierType
+      description: An enumeration.
+    RepaymentAccount:
+      properties:
+        id:
+          type: string
+          maxLength: 40
+          minLength: 1
+          pattern: ^[a-zA-Z0-9\-_]+$
+          title: Id
+          readOnly: true
+        buyer_company:
+          allOf:
+            - $ref: '#/components/schemas/Company'
+          title: Buyer Company
+          description: The buyer company associated with this repayment account.
+        billing_address:
+          $ref: '#/components/schemas/Address'
+        invoice_email:
+          type: string
+          format: email
+          title: Invoice Email
+          description: The email that will receive invoices issued for this repayment account.
+        invoice_cc_emails:
+          items:
+            type: string
+            format: email
+          type: array
+          title: Invoice Cc Emails
+          description: An array of additional email addresses to send invoices to in the CC field. If no addresses in CC are required, this should be left as an empty array.
+        account_representative:
+          allOf:
+            - $ref: '#/components/schemas/Representative'
+          title: Account Representative
+          description: Contact details of person responsible for the repayment account.
+        due_in_days:
+          type: integer
+          title: Due In Days
+          description: The number of days beyond the issue date that an invoice created for this account will be due. Defaults to 14 days if not set explicitly.
+      type: object
+      required:
+        - buyer_company
+        - billing_address
+        - invoice_email
+        - account_representative
+      title: RepaymentAccount
+    RepaymentAccountUpdate:
+      properties:
+        buyer_company:
+          $ref: '#/components/schemas/CompanyUpdate'
+        billing_address:
+          $ref: '#/components/schemas/Address'
+        invoice_email:
+          type: string
+          format: email
+          title: Invoice Email
+        invoice_cc_emails:
+          items:
+            type: string
+            format: email
+          type: array
+          title: Invoice Cc Emails
+          description: An array of additional email addresses to send invoices to in the CC field. Sending an empty array will remove all addresses from the CC field of the invoice emails.
+        account_representative:
+          $ref: '#/components/schemas/Representative'
+        due_in_days:
+          type: integer
+          title: Due In Days
+          description: If this field is set to null or not set, due_in_days will not be changed from the currently stored value.
+      type: object
+      required:
+        - buyer_company
+        - invoice_email
+        - account_representative
+      title: RepaymentAccountUpdate
+    RepaymentPeriod:
+      type: string
+      enum:
+        - MONTHLY
+        - YEARLY
+      title: RepaymentPeriod
+      description: The period within which an instalment is defined.
+    RepaymentPlanFulfillment:
+      properties:
+        invoice_grouping_key:
+          type: string
+          maxLength: 255
+          minLength: 1
+          title: Invoice Grouping Key
+          description: Optional but non-empty grouping key to put instalments into separate invoices
+      type: object
+      title: RepaymentPlanFulfillment
+    RepaymentPlanInvoiceStatusResponse:
+      properties:
+        plan_id:
+          type: string
+          maxLength: 40
+          minLength: 1
+          pattern: ^[a-zA-Z0-9\-_]+$
+          title: Plan Id
+          description: Unique ID of the repayment plan.
+          readOnly: true
+        instalments:
+          items:
+            $ref: '#/components/schemas/InstalmentPaymentStatus'
+          type: array
+          title: Instalments
+          description: A list of instalments in this plan with corresponding details of their invoices (if they have been generated) and the payment statuses of those invoices.
+          readOnly: true
+      type: object
+      required:
+        - plan_id
+        - instalments
+      title: RepaymentPlanInvoiceStatusResponse
+      description: Summarises invoicing status for each of the instalments in a repayment plan.
+    RepaymentPlanPreviewRequest:
+      properties:
+        total_repayment_amount:
+          allOf:
+            - $ref: '#/components/schemas/PositiveMoney'
+          title: Total Repayment Amount
+          description: Total amount the buyer will be expected to pay over the entire repayment plan.
+        tax_subtotals:
+          $ref: '#/components/schemas/TaxSubtotals'
+        terms:
+          oneOf:
+            - $ref: '#/components/schemas/YearlyTerms'
+            - $ref: '#/components/schemas/MonthlyTerms'
+          title: Terms
+          description: The terms describing how the repayment plan should be split into instalments over time. Instalments are automatically created when the repayment plan is fulfilled.
+          discriminator:
+            propertyName: period
+            mapping:
+              YEARLY: '#/components/schemas/YearlyTerms'
+              MONTHLY: '#/components/schemas/MonthlyTerms'
+      type: object
+      required:
+        - total_repayment_amount
+        - tax_subtotals
+        - terms
+      title: RepaymentPlanPreviewRequest
+      description: Used to request what repayment plan options are available for a given set of plan parameters.
+    RepaymentPlanPreviewResponse:
+      properties:
+        terms:
+          oneOf:
+            - $ref: '#/components/schemas/YearlyTerms'
+            - $ref: '#/components/schemas/MonthlyTerms'
+          title: Terms
+          description: The terms describing how the repayment plan should be split into instalments over time. Instalments are automatically created when the repayment plan is fulfilled.
+          discriminator:
+            propertyName: period
+            mapping:
+              YEARLY: '#/components/schemas/YearlyTerms'
+              MONTHLY: '#/components/schemas/MonthlyTerms'
+        instalments:
+          items:
+            $ref: '#/components/schemas/InstalmentPreview'
+          type: array
+          title: Instalments
+        total_repayment_amount:
+          $ref: '#/components/schemas/PositiveMoney'
+        tax_subtotals:
+          $ref: '#/components/schemas/TaxSubtotals'
+      type: object
+      required:
+        - terms
+        - instalments
+        - total_repayment_amount
+        - tax_subtotals
+      title: RepaymentPlanPreviewResponse
+      description: Shows the terms and repayment plan details that Two will offer after requesting a preview of given plan.
+    RepaymentPlanRequest:
+      properties:
+        id:
+          type: string
+          maxLength: 40
+          minLength: 1
+          pattern: ^[a-zA-Z0-9\-_]+$
+          title: Id
+          readOnly: true
+        reference:
+          type: string
+          maxLength: 40
+          minLength: 1
+          pattern: ^[a-zA-Z0-9\-_]+$
+          title: Reference
+          description: The merchant's ID or reference for this repayment plan.
+        description:
+          type: string
+          title: Description
+        total_repayment_amount:
+          allOf:
+            - $ref: '#/components/schemas/PositiveMoney'
+          title: Total Repayment Amount
+          description: The total gross amount of the repayment plan, owed by the buyer when the `RepaymentPlan` is created. Other amounts, like tax and net, are derived from `LineItem`. The `total_repayment_amount` should be equal to the sum over the `repayment_amount` field for all instalments.
+        tax_subtotals:
+          $ref: '#/components/schemas/TaxSubtotals'
+        currency:
+          allOf:
+            - $ref: '#/components/schemas/CurrencyCode'
+          description: The currency of the repayment plan. Applies to all monetary amounts related to the repayment plan.
+        consent_date:
+          type: string
+          format: date
+          title: Consent Date
+          description: The date that the buyer consented and committed to the repayment plan.
+        line_items:
+          items:
+            $ref: '#/components/schemas/LineItem'
+          type: array
+          minItems: 1
+          title: Line Items
+        account_id:
+          type: string
+          maxLength: 40
+          minLength: 1
+          pattern: ^[a-zA-Z0-9\-_]+$
+          title: Account Id
+          description: The repayment account that this repayment plan should be invoiced to.
+        buyer_representative:
+          $ref: '#/components/schemas/Representative'
+        shipping_address:
+          $ref: '#/components/schemas/ShippingAddress'
+        terms:
+          oneOf:
+            - $ref: '#/components/schemas/YearlyTerms'
+            - $ref: '#/components/schemas/MonthlyTerms'
+          title: Terms
+          description: The terms describing how the repayment plan should be split into instalments over time. Instalments are automatically created when the repayment plan is fulfilled.
+          discriminator:
+            propertyName: period
+            mapping:
+              YEARLY: '#/components/schemas/YearlyTerms'
+              MONTHLY: '#/components/schemas/MonthlyTerms'
+      type: object
+      required:
+        - reference
+        - description
+        - total_repayment_amount
+        - tax_subtotals
+        - currency
+        - consent_date
+        - line_items
+        - account_id
+        - buyer_representative
+        - shipping_address
+        - terms
+      title: RepaymentPlanRequest
+      description: A repayment plan carries information about when and how the buyer should pay for a purchase.
+    RepaymentPlanResponse:
+      properties:
+        id:
+          type: string
+          maxLength: 40
+          minLength: 1
+          pattern: ^[a-zA-Z0-9\-_]+$
+          title: Id
+          readOnly: true
+        reference:
+          type: string
+          maxLength: 40
+          minLength: 1
+          pattern: ^[a-zA-Z0-9\-_]+$
+          title: Reference
+          description: The merchant's ID or reference for this repayment plan.
+        description:
+          type: string
+          title: Description
+        total_repayment_amount:
+          allOf:
+            - $ref: '#/components/schemas/PositiveMoney'
+          title: Total Repayment Amount
+          description: The total gross amount of the repayment plan, owed by the buyer when the `RepaymentPlan` is created. Other amounts, like tax and net, are derived from `LineItem`. The `total_repayment_amount` should be equal to the sum over the `repayment_amount` field for all instalments.
+        tax_subtotals:
+          $ref: '#/components/schemas/TaxSubtotals'
+        currency:
+          allOf:
+            - $ref: '#/components/schemas/CurrencyCode'
+          description: The currency of the repayment plan. Applies to all monetary amounts related to the repayment plan.
+        consent_date:
+          type: string
+          format: date
+          title: Consent Date
+          description: The date that the buyer consented and committed to the repayment plan.
+        line_items:
+          items:
+            $ref: '#/components/schemas/LineItem'
+          type: array
+          minItems: 1
+          title: Line Items
+        account_id:
+          type: string
+          maxLength: 40
+          minLength: 1
+          pattern: ^[a-zA-Z0-9\-_]+$
+          title: Account Id
+          description: The repayment account that this repayment plan should be invoiced to.
+        buyer_representative:
+          $ref: '#/components/schemas/Representative'
+        shipping_address:
+          $ref: '#/components/schemas/ShippingAddress'
+        terms:
+          oneOf:
+            - $ref: '#/components/schemas/YearlyTerms'
+            - $ref: '#/components/schemas/MonthlyTerms'
+          title: Terms
+          description: The terms describing how the repayment plan should be split into instalments over time. Instalments are automatically created when the repayment plan is fulfilled.
+          discriminator:
+            propertyName: period
+            mapping:
+              YEARLY: '#/components/schemas/YearlyTerms'
+              MONTHLY: '#/components/schemas/MonthlyTerms'
+        invoice_grouping_key:
+          type: string
+          title: Invoice Grouping Key
+          description: Optional but non-empty grouping key to put instalments into separate invoices
+        instalments:
+          items:
+            $ref: '#/components/schemas/Instalment'
+          type: array
+          minItems: 1
+          title: Instalments
+          description: The instalments of the repayment plan.
+      type: object
+      required:
+        - reference
+        - description
+        - total_repayment_amount
+        - tax_subtotals
+        - currency
+        - consent_date
+        - line_items
+        - account_id
+        - buyer_representative
+        - shipping_address
+        - terms
+      title: RepaymentPlanResponse
+      description: A repayment plan carries information about when and how the buyer should pay for a purchase.
+    RepaymentPlanStatusResponse:
+      properties:
+        funding_status:
+          allOf:
+            - $ref: '#/components/schemas/FundingStatus'
+          readOnly: true
+        fulfilment_status:
+          allOf:
+            - $ref: '#/components/schemas/FulfilmentStatus'
+          readOnly: true
+        cancelled_amount:
+          allOf:
+            - $ref: '#/components/schemas/Money'
+          title: Cancelled Amount
+          readOnly: true
+        invoiced_amount:
+          allOf:
+            - $ref: '#/components/schemas/Money'
+          title: Invoiced Amount
+          readOnly: true
+        total_repayment_amount:
+          allOf:
+            - $ref: '#/components/schemas/PositiveMoney'
+          title: Total Repayment Amount
+          readOnly: true
+        on_recourse:
+          type: boolean
+          title: On Recourse
+        credit_decline_reason:
+          type: string
+          title: Credit Decline Reason
+        recourse_decline_reason:
+          type: string
+          title: Recourse Decline Reason
+      type: object
+      required:
+        - funding_status
+        - fulfilment_status
+        - total_repayment_amount
+        - on_recourse
+      title: RepaymentPlanStatusResponse
+    RepaymentPlanUpdateRequest:
+      properties:
+        invoice_grouping_key:
+          type: string
+          maxLength: 255
+          minLength: 1
+          title: Invoice Grouping Key
+          description: Optional key specified in each repayment plan to group instalments into invoices.
+      type: object
+      title: RepaymentPlanUpdateRequest
+    Representative:
+      properties:
+        first_name:
+          type: string
+          title: First Name
+        last_name:
+          type: string
+          title: Last Name
+        phone_number:
+          type: string
+          title: Phone Number
+        email:
+          type: string
+          format: email
+          title: Email
+      type: object
+      required:
+        - first_name
+        - last_name
+        - phone_number
+        - email
+      title: Representative
+    ShippingAddress:
+      properties:
+        address_line_1:
+          type: string
+          title: Address Line 1
+        address_line_2:
+          type: string
+          title: Address Line 2
+        city:
+          type: string
+          title: City
+        region:
+          type: string
+          title: Region
+        postal_code:
+          type: string
+          title: Postal Code
+        country_code:
+          type: string
+          title: Country Code
+      type: object
+      required:
+        - address_line_1
+        - city
+        - postal_code
+        - country_code
+      title: ShippingAddress
+      description: Shipping addresses have a more relaxed validation for country code, which is only checked against ISO 3166.
+    TaxRate:
+      type: string
+      pattern: ^-?[0-9]+(\.[0-9]{0,6})?
+      format: decimal
+      title: TaxRate
+      description: Tax rate given as a decimal number between 0 and 1 with 6 decimals precision.
+    TaxSubtotal:
+      properties:
+        tax_rate:
+          $ref: '#/components/schemas/TaxRate'
+        taxable_amount:
+          $ref: '#/components/schemas/Money'
+        tax_amount:
+          $ref: '#/components/schemas/Money'
+      type: object
+      required:
+        - tax_rate
+        - taxable_amount
+        - tax_amount
+      title: TaxSubtotal
+    TaxSubtotalBase:
+      properties:
+        tax_rate:
+          $ref: '#/components/schemas/TaxRate'
+        taxable_amount:
+          $ref: '#/components/schemas/Money'
+        tax_amount:
+          $ref: '#/components/schemas/Money'
+      type: object
+      required:
+        - tax_rate
+        - taxable_amount
+        - tax_amount
+      title: TaxSubtotalBase
+    TaxSubtotals:
+      items:
+        $ref: '#/components/schemas/TaxSubtotal'
+      type: array
+      title: TaxSubtotals
+    TaxSubtotalsPreview:
+      items:
+        $ref: '#/components/schemas/TaxSubtotalBase'
+      type: array
+      title: TaxSubtotalsPreview
+    TriggerFutureInvoiceRequest:
+      properties:
+        account_id:
+          type: string
+          format: uuid
+          title: Account Id
+          description: The repayment account to be invoiced.
+        cut_off:
+          type: string
+          format: date
+          title: Cut Off
+          description: The future date at which the invoicing logic should be triggered to run on.
+        invoice_grouping_key:
+          type: string
+          maxLength: 255
+          minLength: 1
+          title: Invoice Grouping Key
+          description: Optional key specified in each repayment plan to group instalments into invoices.
+      type: object
+      required:
+        - account_id
+        - cut_off
+      title: TriggerFutureInvoiceRequest
+      description: Used to request future invoice generations on non-prod environments.
+    ValidationError:
+      properties:
+        loc:
+          items:
+            anyOf:
+              - type: string
+              - type: integer
+          type: array
+          title: Location
+        msg:
+          type: string
+          title: Message
+        type:
+          type: string
+          title: Error Type
+      type: object
+      required:
+        - loc
+        - msg
+        - type
+      title: ValidationError
+    YearlyTerms:
+      properties:
+        period:
+          type: string
+          enum:
+            - YEARLY
+          title: Period
+          description: The time slice over which payments are to be made as part of a repayment plan.
+        number_of_periods:
+          type: integer
+          maximum: 3.0
+          minimum: 1.0
+          title: Number Of Periods
+          description: The number of payment periods associated with this set of terms.
+        start_month:
+          type: integer
+          maximum: 12.0
+          minimum: 1.0
+          title: Start Month
+          description: 'An optional month number (1 for January through to 12 for December) indicating the month in which this yearly instalment plan is first invoiced. Setting this value means that the first time an instalment from this plan is included on an invoice to your customer will be the next time the specified month occurs. **Note: this option is only available with prior agreement from Two, so please contact us to discuss enabling this for your organisation.**'
+      type: object
+      required:
+        - period
+        - number_of_periods
+      title: YearlyTerms
+      description: |-
+        Defines key aspects of a repayment plan, such as the period over which instalments are created and the number of
+        instalments as part of that plan.
+  securitySchemes:
+    api-key:
+      type: apiKey
+      in: header
+      name: X-Api-Key

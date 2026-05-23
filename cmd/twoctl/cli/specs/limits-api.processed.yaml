@@ -1,0 +1,641 @@
+openapi: 3.0.3
+info:
+  title: Two Limits API
+  version: '1.0'
+  description: |-
+    ## Overview and usage
+
+    This API allows you to retrieve the credit limit of your buyers.
+
+    To be specific, you can lookup credit limit for your buyers using organization
+    number or canonical ID which you can obtain via our [Company
+    API](/docs/api/company).
+
+    This API is not enabled by default. To request access, please contact us at integration@two.inc for more information.
+
+
+    ## Environments
+
+    ### Testing
+
+    [https://api.sandbox.two.inc](https://api.sandbox.two.inc/v1/health)
+
+    Note: Read about our [sandbox environment specific behaviour](/docs/guides/sandbox-behaviour-page/).
+
+    ### Production
+
+    [https://api.two.inc](https://api.two.inc/v1/health)
+tags:
+  - name: Limits
+paths:
+  /limits/v1/company/{buyer_country_code}/{buyer_organization_number}:
+    get:
+      summary: Retrieve company credit limit
+      operationId: get_buyer_credit_limits.get
+      description: Retrieve buyer company credit limit based on buyer country code and organization number.
+      tags:
+        - Limits
+      parameters:
+        - name: buyer_country_code
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Buyer country code
+        - name: buyer_organization_number
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Buyer organization number
+      responses:
+        default:
+          description: Error response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '200':
+          description: Credit limits
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UniversalCreditLimitsResponse'
+        '403':
+          description: Access denied
+        '404':
+          description: Buyer company not found
+      security:
+        - X-Api-Key: []
+  /limits/v1/company/{buyer_company_canonical_id}:
+    get:
+      summary: Retrieve company credit limit by canonical ID
+      operationId: get_buyer_credit_limits_by_canonical_id.get
+      description: Retrieve buyer company credit limit based on company canonical ID. This is a unique ID that represents a company on our system and can be obtained using our [Company API](/docs/api/company).
+      tags:
+        - Limits
+      parameters:
+        - name: buyer_company_canonical_id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Buyer company canonical ID
+      responses:
+        default:
+          description: Error response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '200':
+          description: Credit limits
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UniversalCreditLimitsResponse'
+        '403':
+          description: Access denied
+        '404':
+          description: Buyer company not found
+      security:
+        - X-Api-Key: []
+  /limits/v1/credit-builder/url:
+    post:
+      summary: Create a credit builder url for a buyer company.
+      operationId: create_credit_builder_url_handler.post
+      description: Create buyer company credit builder url based on company canonical ID, and supply a return url for user to return to upon completion of credit builder. Canonical ID a unique ID that represents a company on our system and can be obtained using our [Company API](/docs/api/company)
+      tags:
+        - Limits
+      parameters: []
+      responses:
+        default:
+          description: Error response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '201':
+          description: Credit builder url response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreditBuilderUrlResponseSchema'
+        '403':
+          description: Access denied
+        '404':
+          description: Buyer company not found
+      security:
+        - X-Api-Key: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreditBuilderUrlCreateSchema'
+components:
+  schemas:
+    ErrorResponse:
+      properties:
+        error_code:
+          default: null
+          description: An error code related to the error.
+          title: Error Code
+          type: string
+          nullable: true
+        error_details:
+          default: null
+          description: A detailed description of the error when available.
+          title: Error Details
+          type: string
+          nullable: true
+        error_message:
+          default: null
+          description: A short description of the error.
+          title: Error Message
+          type: string
+          nullable: true
+        error_json:
+          default: null
+          description: A list of errors when available.
+          title: Error Json
+          items:
+            $ref: '#/components/schemas/ErrorJSON'
+          type: array
+          nullable: true
+        error_trace_id:
+          default: null
+          description: A unique trace ID for the request that generated the error. Please quote this trace ID in any support requests.
+          title: Error Trace Id
+          type: string
+          nullable: true
+      title: ErrorResponse
+      type: object
+    ErrorJSON:
+      properties:
+        loc:
+          default: null
+          description: Error location.
+          title: Loc
+          items:
+            anyOf:
+              - type: string
+              - type: integer
+          type: array
+          nullable: true
+        msg:
+          default: null
+          description: Error message.
+          title: Msg
+          type: string
+          nullable: true
+        type:
+          default: null
+          description: Error type.
+          title: Type
+          type: string
+          nullable: true
+        ctx:
+          anyOf:
+            - type: string
+            - additionalProperties: true
+              type: object
+          default: null
+          description: Error context information.
+          title: Ctx
+          nullable: true
+      title: ErrorJSON
+      type: object
+    UniversalCreditLimitsResponse:
+      properties:
+        decision:
+          $ref: '#/components/schemas/UniversalCreditDecisionSchema'
+        credit:
+          $ref: '#/components/schemas/UniversalCreditSchema'
+        recourse:
+          default: null
+          $ref: '#/components/schemas/UniversalRecourseSchema'
+          nullable: true
+        buyer_company_name:
+          title: Buyer Company Name
+          type: string
+        company_number:
+          title: Company Number
+          type: string
+        country_code:
+          $ref: '#/components/schemas/CountryCodeEnum'
+        currency:
+          $ref: '#/components/schemas/CurrencyEnum'
+        risk_bucket:
+          default: null
+          $ref: '#/components/schemas/RiskBucketEnum'
+          nullable: true
+      required:
+        - decision
+        - credit
+        - buyer_company_name
+        - company_number
+        - country_code
+        - currency
+      title: UniversalCreditLimitsResponse
+      type: object
+    BuyerCreditLimitSchema:
+      properties:
+        merchant_defined_limit:
+          format: decimal
+          pattern: ^-?[0-9]+(\.[0-9]{0,2})?
+          title: Merchant Defined Limit
+          type: string
+        exposure:
+          format: decimal
+          pattern: ^-?[0-9]+(\.[0-9]{0,2})?
+          title: Exposure
+          type: string
+        available_limit:
+          title: Available Limit
+          format: decimal
+          pattern: ^-?[0-9]+(\.[0-9]{0,2})?
+          type: string
+          nullable: true
+      required:
+        - merchant_defined_limit
+        - exposure
+        - available_limit
+      title: BuyerCreditLimitSchema
+      type: object
+    CountryCodeEnum:
+      enum:
+        - AD
+        - AE
+        - AL
+        - AM
+        - AO
+        - AR
+        - AT
+        - AU
+        - AZ
+        - BA
+        - BB
+        - BD
+        - BE
+        - BF
+        - BG
+        - BH
+        - BI
+        - BJ
+        - BN
+        - BO
+        - BR
+        - BS
+        - BW
+        - CA
+        - CG
+        - CH
+        - CL
+        - CM
+        - CO
+        - CR
+        - CY
+        - CZ
+        - DE
+        - DJ
+        - DK
+        - DO
+        - DZ
+        - EC
+        - EE
+        - EG
+        - ES
+        - ET
+        - FI
+        - FJ
+        - FR
+        - GA
+        - GB
+        - GE
+        - GH
+        - GN
+        - GQ
+        - GR
+        - GT
+        - GY
+        - HN
+        - HR
+        - HT
+        - HU
+        - ID
+        - IE
+        - IL
+        - IN
+        - IQ
+        - IS
+        - IT
+        - JM
+        - JO
+        - JP
+        - KE
+        - KG
+        - KH
+        - KR
+        - KW
+        - KZ
+        - LA
+        - LB
+        - LI
+        - LK
+        - LT
+        - LU
+        - LV
+        - LR
+        - MA
+        - MC
+        - MD
+        - ME
+        - MG
+        - MK
+        - MN
+        - MR
+        - MT
+        - MU
+        - MV
+        - MW
+        - MX
+        - MY
+        - MZ
+        - NA
+        - NE
+        - NG
+        - NL
+        - 'NO'
+        - NP
+        - NZ
+        - OM
+        - PA
+        - PE
+        - PG
+        - PH
+        - PK
+        - PL
+        - PT
+        - PY
+        - QA
+        - RO
+        - RS
+        - RW
+        - SA
+        - SE
+        - SG
+        - SI
+        - SK
+        - SL
+        - SN
+        - SR
+        - SV
+        - SZ
+        - TD
+        - TG
+        - TH
+        - TJ
+        - TM
+        - TN
+        - TR
+        - TT
+        - TZ
+        - UA
+        - UG
+        - US
+        - UY
+        - UZ
+        - VN
+        - ZA
+        - ZM
+      title: CountryCodeEnum
+      type: string
+    CurrencyEnum:
+      enum:
+        - CHF
+        - CZK
+        - DKK
+        - EUR
+        - GBP
+        - INR
+        - MXN
+        - NOK
+        - PLN
+        - RON
+        - SEK
+        - USD
+      title: CurrencyEnum
+      type: string
+    DeclineReasonEnum:
+      enum:
+        - TOO_HIGH_RISK
+        - BUYER_LIMIT_EXCEEDED
+        - BUYER_NOT_FOUND
+        - BUYER_ADDRESS_DEVIATION
+        - BUYER_INFO_INCONSISTENT
+        - BUYER_AUTHENTICATION_FAILED
+        - FRAUD_CHECK_NOT_PASSED
+        - CREDIT_CHECK_FAILED
+        - EXCEPTION
+        - SERVICE_UNAVAILABLE
+        - BUYER_IN_ARREARS
+        - DECLINED_IN_VERIFICATION
+        - UNDEFINED
+        - INVALID_LEGAL_REP
+        - ORDER_EXCEEDS_MAX_INVOICE_AMOUNT
+        - SE_SOLE_TRADER
+        - INVALID_ORDER_DATA
+        - INVALID_ORDER_DATA_TOTAL_AMOUNT_MISMATCH
+        - INVALID_ORDER_LINE_ITEM_DATA_AMOUNT_MISMATCH
+        - MERCHANT_LIMIT_EXCEEDED
+        - ORDER_BELOW_MIN_INVOICE_AMOUNT
+        - ORDER_EXCEEDS_MIN_INVOICE_AMOUNT
+        - BUYER_NOT_SUPPORTED
+        - BUYER_IS_BLOCKED
+        - NO_BUSINESS_ACCOUNT
+        - MERCHANT_NOT_ON_RECOURSE
+        - COMPANY_CREDIT_REPORT_CONSENT_REQUIRED
+        - NO_LEGAL_REPRESENTATIVES
+        - CREDIT_REPORT_BLOCKED
+        - ORDER_EXCEEDS_REGIONAL_LIMIT
+      title: DeclineReasonEnum
+      type: string
+    MerchantCreditLimitSchema:
+      properties:
+        total_limit:
+          format: decimal
+          pattern: ^-?[0-9]+(\.[0-9]{0,2})?
+          title: Total Limit
+          type: string
+        exposure:
+          format: decimal
+          pattern: ^-?[0-9]+(\.[0-9]{0,2})?
+          title: Exposure
+          type: string
+        available_limit:
+          format: decimal
+          pattern: ^-?[0-9]+(\.[0-9]{0,2})?
+          title: Available Limit
+          type: string
+      required:
+        - total_limit
+        - exposure
+        - available_limit
+      title: MerchantCreditLimitSchema
+      type: object
+    RiskBucketEnum:
+      enum:
+        - LOW
+        - MEDIUM
+        - HIGH
+      title: RiskBucketEnum
+      type: string
+    UniversalCreditDecisionSchema:
+      properties:
+        decision:
+          title: Decision
+          type: string
+        decline_reason:
+          default: null
+          title: Decline Reason
+          items:
+            $ref: '#/components/schemas/DeclineReasonEnum'
+          type: array
+          nullable: true
+      required:
+        - decision
+      title: UniversalCreditDecisionSchema
+      type: object
+    UniversalCreditLimitSchema:
+      properties:
+        total_limit:
+          format: decimal
+          pattern: ^-?[0-9]+(\.[0-9]{0,2})?
+          title: Total Limit
+          type: string
+        exposure:
+          format: decimal
+          pattern: ^-?[0-9]+(\.[0-9]{0,2})?
+          title: Exposure
+          type: string
+        available_limit:
+          format: decimal
+          pattern: ^-?[0-9]+(\.[0-9]{0,2})?
+          title: Available Limit
+          type: string
+        per_order_limit:
+          format: decimal
+          pattern: ^-?[0-9]+(\.[0-9]{0,2})?
+          title: Per Order Limit
+          type: string
+      required:
+        - total_limit
+        - exposure
+        - available_limit
+        - per_order_limit
+      title: UniversalCreditLimitSchema
+      type: object
+    UniversalCreditSchema:
+      properties:
+        currency:
+          $ref: '#/components/schemas/CurrencyEnum'
+        short_term:
+          $ref: '#/components/schemas/UniversalCreditLimitSchema'
+        long_term:
+          $ref: '#/components/schemas/UniversalCreditLimitSchema'
+      required:
+        - currency
+        - short_term
+        - long_term
+      title: UniversalCreditSchema
+      type: object
+    UniversalRecourseSchema:
+      properties:
+        buyer:
+          $ref: '#/components/schemas/BuyerCreditLimitSchema'
+        merchant:
+          $ref: '#/components/schemas/MerchantCreditLimitSchema'
+        currency:
+          $ref: '#/components/schemas/CurrencyEnum'
+        is_recourse_enabled:
+          title: Is Recourse Enabled
+          type: boolean
+        recourse_decline_reason:
+          default: null
+          title: Recourse Decline Reason
+          type: string
+          nullable: true
+        recourse_flag:
+          title: Recourse Flag
+          type: boolean
+      required:
+        - buyer
+        - merchant
+        - currency
+        - is_recourse_enabled
+        - recourse_flag
+      title: UniversalRecourseSchema
+      type: object
+    CreditBuilderUrlCreateSchema:
+      properties:
+        canonical_id:
+          description: Unique canonical ID representing the company the credit builder url is for
+          title: Canonical Id
+          type: string
+        return_url:
+          description: 'Url the user will be advised to return to after the credit builder process is completed. This URL will have query parameters appended to it of the `status` and `result` of the credit builder process.status can be the following: COMPLETED, ERROR, ABANDONEDif status is COMPLETED, result will be appended, and can be the following: INCREASED,DECREASED,NO_CHANGE,NO_CREDIT,UNDER_REVIEW'
+          title: Return Url
+          type: string
+        company_representative_email:
+          default: null
+          description: Email of the company representative, this allows us to contact the user on the outcome of their credit builder application if the data needs to be manually reviewed. This is optional and can be None.
+          title: Company Representative Email
+          format: email
+          type: string
+          nullable: true
+      required:
+        - canonical_id
+        - return_url
+      title: CreditBuilderUrlCreateSchema
+      type: object
+    CreditBuilderUrlResponseSchema:
+      properties:
+        redirect_url:
+          description: The URL to redirect the user to for credit builder. This URL will be valid for a limited time.
+          title: Redirect Url
+          type: string
+        expires_at:
+          description: The time at which the URL expires. After this time, the URL will no longer be valid.
+          format: date-time
+          title: Expires At
+          type: string
+      required:
+        - redirect_url
+        - expires_at
+      title: CreditBuilderUrlResponseSchema
+      type: object
+  securitySchemes:
+    X-Api-Key:
+      type: apiKey
+      description: |-
+        For instructions on how to obtain API keys, visit [this page](/docs/guides/getting-api-keys-page/).
+        You will obtain two different keys, an initial one for testing in our sandbox environment and once ready, for production.
+        Your API keys enables others to act on your behalf if they are able to obtain them, so make sure to keep them safe.
+        Your API key is not to be shared with anyone, including in your version control system, client-side code, in public chatrooms and so on.
+        The API key is applied in the request header. For example:
+        ```
+        GET /something
+        X-Api-Key: secret_test_aabbccddeeff0123456789
+        ```
+
+        API Keys have the following structure: `secret_<env>_<key>` where:
+        - `env` is determined by the environment (`prod` for production, `test` for test environments)
+        - `key` is a random, URL-safe, 64-bit encoded text string containing 32 random bytes.
+      name: X-Api-Key
+      in: header
+servers:
+  - url: https://api.sandbox.two.inc
+    description: Testing
+  - url: https://api.two.inc
+    description: Production
+security: []

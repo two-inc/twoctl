@@ -1,0 +1,68 @@
+name: regenerate
+
+# Pulls the latest OpenAPI specs from two-inc/docs and regenerates the
+# vendored copies + clients. Opens a PR if anything changed.
+#
+# Triggered by:
+#   - manual dispatch
+#   - repository_dispatch (event_type: openapi-updated), fired by a workflow
+#     in two-inc/docs whenever openapi/* files change on main.
+#   - nightly cron (safety net in case the dispatch is dropped)
+
+on:
+  workflow_dispatch: {}
+  repository_dispatch:
+    types: [openapi-updated]
+  schedule:
+    - cron: '0 3 * * *'
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  regen:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
+        with:
+          go-version: '1.26'
+          cache: true
+
+      - name: Fetch latest specs from two-inc/docs
+        env:
+          GH_TOKEN: ${{ secrets.DOCS_READ_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [[ -z "${GH_TOKEN:-}" ]]; then
+            echo "::notice::DOCS_READ_TOKEN not configured; skipping regeneration."
+            echo "Add a fine-grained PAT with read access to two-inc/docs as the"
+            echo "DOCS_READ_TOKEN repo secret to enable automatic regeneration."
+            exit 0
+          fi
+          for api in \
+            checkout billing-account repay recourse company limits \
+            autofill business-registration marketplace \
+            trade-account-v2 trade-account-v3 webhooks; do
+            gh api repos/two-inc/docs/contents/openapi/${api}-api.yaml \
+              --jq '.content' \
+              -H "Accept: application/vnd.github.v3+json" \
+              | base64 -d > openapi/${api}-api.yaml
+          done
+
+      - run: ./scripts/codegen.sh
+
+      - run: go build ./... && go vet ./...
+
+      - name: Open PR if changed
+        uses: peter-evans/create-pull-request@v7
+        with:
+          commit-message: 'chore: regenerate clients from latest openapi specs'
+          title: 'chore: regenerate clients from latest openapi specs'
+          branch: regen/openapi
+          delete-branch: true
+          body: |
+            Regenerated from the latest openapi specs in [two-inc/docs](https://github.com/two-inc/docs/tree/main/openapi).
+
+            This PR was opened automatically by the `regenerate` workflow.

@@ -1,0 +1,1135 @@
+openapi: 3.0.3
+info:
+  title: Company API
+  description: |
+    The Company Information API provides comprehensive company information by querying nationally recognized business
+    registers across our primary service regions.
+
+    ### How It Works
+    When you perform a [search](/docs/api/company/company-search/) through our API, the system responds with a list of companies that
+    match the provided query parameters.
+    The results include each company\'s legal name and its nationally recognized organization number together with a
+    `lookup_id` that can be used to get more detailed information by calling the [Get
+    Company](/docs/api/company/get-company-company-canonical-or-lookup-id-get/) endpoint.
+
+    ### Referencing a company across Two\'s APIs
+    When looking up a company with the [Get Company](/docs/api/company/get-company-company-canonical-or-lookup-id-get/) endpoint, the `canonical_id`
+    field of the returned company objects represents the "canonical company ID", which can be used across Two\'s portfolio
+    of APIs when a  company needs to be referenced.
+    An example of this is the [**create
+    order**](/docs/api/checkout/create-order-handler-post/) endpoint, requiring a reference
+    to the buyer company.
+
+    ### Importance in the Checkout API
+    As part of our [**checkout-api**](/docs/api/checkout/) (order creation service), the [**billing
+    address**](/docs/api/checkout/create-order-handler-post/#request-billing_address)
+    is a required field in our schema.
+    For merchants who may not initially have the company name, organization number, or billing address for their business
+    buyers, starting with the Search API provides an efficient way for your users to directly identify their business.
+
+    ## Environments
+
+    ### Testing
+
+    [https://api.sandbox.two.inc/companies/v2](https://api.sandbox.two.inc/companies/v2/health)
+
+    Note: Read about our [sandbox environment specific behaviour](/docs/guides/sandbox-behaviour-page/).
+
+    ### Production
+
+    [https://api.two.inc/companies/v2](https://api.two.inc/companies/v2/health)
+  version: 0.9.0
+servers:
+  - url: https://api.sandbox.two.inc/companies/v2
+    description: Testing
+  - url: https://api.two.inc/companies/v2
+    description: Production
+paths:
+  /company:
+    get:
+      tags:
+        - Company
+      summary: Company Search
+      description: |-
+        Search for companies by name or official regsitry IDs (e.g. organization numbers). This can for instance be
+        integrated as an auto-complete search in your checkout solution. This endpoints helps users quickly find their
+        company with a `lookup_id`, that can be used in [Get Company](/docs/api/company/get-company-company-canonical-or-lookup-id-get/) endpoint to
+        get the company's canonical ID.
+
+        This service enhances user experience by reducing manual input and ensuring that the information provided
+        is accurate and consistent with our API requirements.
+
+        Note that this endpoint is optimized for providing quick search results, so the information returned per company is
+        kept to a minimum.
+
+        Additional information can be retrieved by calling the [Get Company](/docs/api/company/get-company-company-canonical-or-lookup-id-get/)
+        endpoint with the `lookup_id` obtained from the search.
+      operationId: company_search
+      parameters:
+        - name: q
+          in: query
+          required: false
+          schema:
+            description: Company name or organization number query
+            examples:
+              - MONOZUKI
+              - "817352812"
+            title: Q
+            type: string
+            minLength: 1
+            maxLength: 100
+            nullable: true
+          description: Company name or organization number query
+        - name: country
+          in: query
+          required: true
+          schema:
+            type: string
+            minLength: 2
+            maxLength: 2
+            title: Country code
+            description: Country code as alpha-2 ISO 3166
+            examples:
+              - "NO"
+          description: Country code as alpha-2 ISO 3166
+        - name: company_type
+          in: query
+          required: false
+          schema:
+            description: Company type to search for
+            examples:
+              - GOVERNMENT
+            title: Company Type
+            $ref: "#/components/schemas/CompanyType"
+            nullable: true
+          description: Company type to search for
+        - name: company_type__ne
+          in: query
+          required: false
+          schema:
+            description: Company type to exclude from search
+            examples:
+              - GOVERNMENT
+            title: Company Type  Ne
+            $ref: "#/components/schemas/CompanyType"
+            nullable: true
+          description: Company type to exclude from search
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            maximum: 100
+            minimum: 1
+            description: Maximum number of results to return
+            examples:
+              - 15
+            default: 15
+            title: Limit
+          description: Maximum number of results to return
+        - name: include_sole_traders
+          in: query
+          required: false
+          schema:
+            type: boolean
+            description: Opt in to include sole traders in the search results. This is only relevant in Sweden where sole traders are currently not included in the search results by default.
+            default: false
+            title: Include Sole Traders
+          description: Opt in to include sole traders in the search results. This is only relevant in Sweden where sole traders are currently not included in the search results by default.
+        - name: state
+          in: query
+          required: false
+          schema:
+            description: US state code for filtering companies by state (e.g., 'FL', 'CA', 'NY'). Only available for US searches.
+            examples:
+              - FL
+              - CA
+              - NY
+            title: State
+            type: string
+            nullable: true
+          description: US state code for filtering companies by state (e.g., 'FL', 'CA', 'NY'). Only available for US searches.
+        - name: post_code
+          in: query
+          required: false
+          schema:
+            description: Postal/ZIP code for filtering companies by location (e.g., '33101', '10115').
+            examples:
+              - "33101"
+              - "10115"
+              - SW1A 1AA
+            title: Post Code
+            type: string
+            nullable: true
+          description: Postal/ZIP code for filtering companies by location (e.g., '33101', '10115').
+        - name: website
+          in: query
+          required: false
+          schema:
+            description: Website URL for filtering companies by their website (e.g., 'amazon.com', 'microsoft.com'). Available for supported countries.
+            examples:
+              - amazon.com
+              - microsoft.com
+              - google.com
+            title: Website
+            type: string
+            nullable: true
+          description: Website URL for filtering companies by their website (e.g., 'amazon.com', 'microsoft.com'). Available for supported countries.
+        - name: organization_number
+          in: query
+          required: false
+          schema:
+            description: Organization number for filtering companies by their organization number (e.g., '123456789').
+            examples:
+              - "123456789"
+              - "987654321"
+              - EIN:12-3456789
+              - DUN:123456789
+            title: Organization Number
+            type: array
+            items:
+              type: string
+            nullable: true
+          description: Organization number for filtering companies by their organization number (e.g., '123456789').
+      responses:
+        "200":
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CompanySearchResponse"
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Bad Request
+        "422":
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HTTPValidationError"
+  /company/{canonical_or_lookup_id}:
+    get:
+      tags:
+        - Company
+      summary: Get Company
+      description: |-
+        Get full details on a company, given a company's `lookup_id` or `canonical_id`.
+
+        The result will include company's `canonical_id`, which is essential for various operations, such as:
+
+        * [**Order Creation**](/docs/api/checkout/) (Core Flow): Simplify the process by
+        automatically filling in required details.
+        * [**Trade Account Onboarding**](/docs/api/trade-account-v3/): Streamline the onboarding
+        process with accurate company data. *Note that the onboarding service is optional and not required for order
+        creation.*
+
+        The result includes additional information that cannot be obtained from the [Company
+        Search](/docs/api/company/company-search/) alone.
+      operationId: get_company_company__canonical_or_lookup_id__get
+      security:
+        - api-key: []
+      parameters:
+        - name: canonical_or_lookup_id
+          in: path
+          required: true
+          schema:
+            type: string
+            title: Canonical Or Lookup Id
+        - name: no_address
+          in: query
+          required: false
+          schema:
+            type: boolean
+            default: false
+            title: No Address
+      responses:
+        "200":
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CompanyDetailsResponse"
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Bad Request
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Not Found
+        "422":
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HTTPValidationError"
+  /company/{canonical_id}/branches:
+    get:
+      tags:
+        - Company
+      summary: Get Company Branches
+      description: |-
+        ** This endpoint is only supported in Norway (`NO`) for now. **
+
+        Get all branches of a company, given a company's `canonical_id`,
+        which you can get from [**Get Company**](/docs/api/company/get-company-company-canonical-or-lookup-id-get/) .
+      operationId: get_company_branches_company__canonical_id__branches_get
+      parameters:
+        - name: canonical_id
+          in: path
+          required: true
+          schema:
+            type: string
+            title: Canonical Id
+        - name: q
+          in: query
+          required: false
+          schema:
+            type: string
+            default: ""
+            title: Q
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            maximum: 100
+            minimum: 1
+            default: 15
+            title: Limit
+      responses:
+        "200":
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BranchSearchResponse"
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Bad Request
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Not Found
+        "422":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Unprocessable Entity
+  /admin/companies:
+    get:
+      tags:
+        - Admin
+      summary: Search Companies Admin
+      description: |-
+        **Admin only**: Search companies in Bifrost database only.
+
+        Requires X-Api-Key header with trusted service credentials.
+        Only queries the company table - no fallback to external providers.
+        Returns empty list if no companies found.
+      operationId: search_companies_admin_admin_companies_get
+      security:
+        - api-key: []
+      parameters:
+        - name: q
+          in: query
+          required: false
+          schema:
+            description: Company name or organization number query
+            examples:
+              - MONOZUKI
+              - "817352812"
+            title: Q
+            type: string
+            minLength: 1
+            maxLength: 100
+            nullable: true
+          description: Company name or organization number query
+        - name: country
+          in: query
+          required: true
+          schema:
+            type: string
+            minLength: 2
+            maxLength: 2
+            title: Country code
+            description: Country code as alpha-2 ISO 3166
+            examples:
+              - "NO"
+          description: Country code as alpha-2 ISO 3166
+        - name: company_type
+          in: query
+          required: false
+          schema:
+            description: Company type to search for
+            examples:
+              - GOVERNMENT
+            title: Company Type
+            $ref: "#/components/schemas/CompanyType"
+            nullable: true
+          description: Company type to search for
+        - name: company_type__ne
+          in: query
+          required: false
+          schema:
+            description: Company type to exclude from search
+            examples:
+              - GOVERNMENT
+            title: Company Type  Ne
+            $ref: "#/components/schemas/CompanyType"
+            nullable: true
+          description: Company type to exclude from search
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            maximum: 100
+            minimum: 1
+            description: Maximum number of results to return
+            examples:
+              - 15
+            default: 15
+            title: Limit
+          description: Maximum number of results to return
+        - name: include_sole_traders
+          in: query
+          required: false
+          schema:
+            type: boolean
+            description: Opt in to include sole traders in the search results. This is only relevant in Sweden where sole traders are currently not included in the search results by default.
+            default: false
+            title: Include Sole Traders
+          description: Opt in to include sole traders in the search results. This is only relevant in Sweden where sole traders are currently not included in the search results by default.
+        - name: state
+          in: query
+          required: false
+          schema:
+            description: US state code for filtering companies by state (e.g., 'FL', 'CA', 'NY'). Only available for US searches.
+            examples:
+              - FL
+              - CA
+              - NY
+            title: State
+            type: string
+            nullable: true
+          description: US state code for filtering companies by state (e.g., 'FL', 'CA', 'NY'). Only available for US searches.
+        - name: post_code
+          in: query
+          required: false
+          schema:
+            description: Postal/ZIP code for filtering companies by location (e.g., '33101', '10115').
+            examples:
+              - "33101"
+              - "10115"
+              - SW1A 1AA
+            title: Post Code
+            type: string
+            nullable: true
+          description: Postal/ZIP code for filtering companies by location (e.g., '33101', '10115').
+        - name: website
+          in: query
+          required: false
+          schema:
+            description: Website URL for filtering companies by their website (e.g., 'amazon.com', 'microsoft.com'). Available for supported countries.
+            examples:
+              - amazon.com
+              - microsoft.com
+              - google.com
+            title: Website
+            type: string
+            nullable: true
+          description: Website URL for filtering companies by their website (e.g., 'amazon.com', 'microsoft.com'). Available for supported countries.
+        - name: organization_number
+          in: query
+          required: false
+          schema:
+            description: Organization number for filtering companies by their organization number (e.g., '123456789').
+            examples:
+              - "123456789"
+              - "987654321"
+              - EIN:12-3456789
+              - DUN:123456789
+            title: Organization Number
+            type: array
+            items:
+              type: string
+            nullable: true
+          description: Organization number for filtering companies by their organization number (e.g., '123456789').
+      responses:
+        "200":
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminCompanySearchResponse"
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Forbidden
+        "422":
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HTTPValidationError"
+  /admin/company:
+    post:
+      tags:
+        - Admin
+      summary: Create Company Admin
+      description: |-
+        **Admin only**: Create a new company in the Bifrost database.
+
+        Requires X-Api-Key header with trusted service credentials.
+        Optional X-Admin-User-Id header to identify the admin user creating the company.
+      operationId: create_company_admin_admin_company_post
+      security:
+        - api-key: []
+      parameters:
+        - name: X-Admin-User-Id
+          in: header
+          required: false
+          schema:
+            description: Admin user ID creating the company
+            title: X-Admin-User-Id
+            type: string
+            nullable: true
+          description: Admin user ID creating the company
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CompanyCreateRequest"
+      responses:
+        "200":
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CompanyCreateResponse"
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Bad Request
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Forbidden
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Conflict
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Internal Server Error
+        "422":
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HTTPValidationError"
+  /admin/company/{canonical_id}:
+    patch:
+      tags:
+        - Admin
+      summary: Update Company Admin
+      description: |-
+        **Admin only**: Update company details.
+
+        Requires X-Api-Key header with trusted service credentials.
+        Optional X-Admin-User-Id header to identify the admin user making the update.
+        Allows editing: name, company_type, status, national_identifier, identifiers, addresses.
+      operationId: update_company_admin_admin_company__canonical_id__patch
+      security:
+        - api-key: []
+      parameters:
+        - name: canonical_id
+          in: path
+          required: true
+          schema:
+            type: string
+            title: Canonical Id
+        - name: X-Admin-User-Id
+          in: header
+          required: false
+          schema:
+            description: Admin user ID making the update
+            title: X-Admin-User-Id
+            type: string
+            nullable: true
+          description: Admin user ID making the update
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CompanyUpdateRequest"
+      responses:
+        "200":
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CompanyUpdateResponse"
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Bad Request
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Forbidden
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Not Found
+        "422":
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HTTPValidationError"
+components:
+  schemas:
+    Address:
+      properties:
+        type:
+          description: Type of the address.
+          default: BUSINESS_ADDRESS
+          examples:
+            - BUSINESS_ADDRESS
+          $ref: "#/components/schemas/address_type"
+          nullable: true
+        branch_name:
+          title: Branch Name
+          description: Branch name, if applicable.
+          examples:
+            - MONOZUKI AS - Branch
+          type: string
+          minLength: 1
+          nullable: true
+        national_id:
+          title: National Id
+          description: The identifier that the company is known by in the official registries of its home country.
+          examples:
+            - "817352812"
+          type: string
+          minLength: 1
+          nullable: true
+        branch_id:
+          title: Branch Id
+          examples:
+            - "12345678900012"
+          type: string
+          minLength: 1
+          nullable: true
+        street_address:
+          title: Street Address
+          description: Street address.
+          examples:
+            - Lombard St 10
+          type: string
+          minLength: 1
+          nullable: true
+        postal_code:
+          title: Postal Code
+          description: Postal code.
+          examples:
+            - "90210"
+          type: string
+          minLength: 1
+          nullable: true
+        city:
+          title: City
+          description: City.
+          examples:
+            - Beverly Hills
+          type: string
+          minLength: 1
+          nullable: true
+        region:
+          title: Region
+          description: State/Region/Province.
+          examples:
+            - CA
+          type: string
+          minLength: 1
+          nullable: true
+        country:
+          title: Country
+          examples:
+            - US
+          type: string
+          maxLength: 2
+          minLength: 2
+          description: Country code as alpha-2 ISO 3166
+          nullable: true
+      type: object
+      title: Address
+    AdminCompanySearchResponse:
+      properties:
+        items:
+          items:
+            $ref: "#/components/schemas/AdminSearchCompanyInstance"
+          type: array
+          title: Items
+          description: List of companies from Bifrost database matching the search criteria
+      type: object
+      required:
+        - items
+      title: AdminCompanySearchResponse
+    AdminSearchCompanyInstance:
+      properties:
+        name:
+          type: string
+          minLength: 1
+          title: Name
+          examples:
+            - MONOZUKI AS
+        country:
+          title: Country
+          examples:
+            - US
+          type: string
+          maxLength: 2
+          minLength: 2
+          description: Country code as alpha-2 ISO 3166
+          nullable: true
+        national_identifier:
+          description: The identifier that the company is known by in the official registries of its home country, if any.
+          $ref: "#/components/schemas/CompanyIdentifier"
+          nullable: true
+        company_type:
+          $ref: "#/components/schemas/CompanyType"
+          default: UNDEFINED
+          examples:
+            - GOVERNMENT
+        status:
+          title: Status
+          description: The trade status of the company.
+          examples:
+            - ACTIVE
+          type: string
+          nullable: true
+        lookup_id:
+          type: string
+          minLength: 1
+          title: Lookup Id
+          description: "Lookup ID for the company, it can be used later on to get the canonical ID of the company and company details. *NOTE*: This id is not durable, may change during a company's lifetime, and should be regarded as a temporary reference only."
+          examples:
+            - NO817352812
+        additional_information:
+          title: Additional Information
+          description: Arbitrary human-readable information, such as a head-office address or a common trading name, that enables a user to differentiate between two companies with the same name.
+          type: string
+          minLength: 1
+          nullable: true
+        highlight:
+          type: string
+          minLength: 1
+          title: Highlight
+          examples:
+            - <mark><b>MONO</b></mark>ZUKI AS
+        canonical_id:
+          type: string
+          minLength: 1
+          title: Canonical Id
+          description: Canonical ID for the company. This is the permanent, globally unique identifier.
+          examples:
+            - dHdvOkdCOjAxNjI0Mjk3
+      type: object
+      required:
+        - name
+        - lookup_id
+        - highlight
+        - canonical_id
+      title: AdminSearchCompanyInstance
+    Branch:
+      properties:
+        name:
+          type: string
+          minLength: 1
+          title: Name
+          examples:
+            - MONOZUKI AS
+        country:
+          title: Country
+          examples:
+            - US
+          type: string
+          maxLength: 2
+          minLength: 2
+          description: Country code as alpha-2 ISO 3166
+          nullable: true
+        national_identifier:
+          description: The identifier that the company is known by in the official registries of its home country, if any.
+          $ref: "#/components/schemas/CompanyIdentifier"
+          nullable: true
+      type: object
+      required:
+        - name
+      title: Branch
+    BranchSearchResponse:
+      properties:
+        items:
+          items:
+            $ref: "#/components/schemas/Branch"
+          type: array
+          title: Items
+          description: List of branches matching the search criterion.
+      type: object
+      required:
+        - items
+      title: BranchSearchResponse
+    CompanyCreateRequest:
+      properties:
+        name:
+          type: string
+          minLength: 1
+          title: Name
+        country:
+          type: string
+          maxLength: 2
+          minLength: 2
+          title: Country code
+          description: Country code as alpha-2 ISO 3166
+        company_type:
+          $ref: "#/components/schemas/CompanyType"
+          default: UNDEFINED
+        status:
+          title: Status
+          type: string
+          nullable: true
+        national_identifier:
+          $ref: "#/components/schemas/CompanyIdentifier"
+          nullable: true
+        identifiers:
+          items:
+            $ref: "#/components/schemas/CompanyIdentifier"
+          type: array
+          title: Identifiers
+        addresses:
+          items:
+            $ref: "#/components/schemas/Address"
+          type: array
+          title: Addresses
+      type: object
+      required:
+        - name
+        - country
+      title: CompanyCreateRequest
+      description: Request to create a new company (admin only).
+    CompanyCreateResponse:
+      properties:
+        canonical_id:
+          type: string
+          minLength: 1
+          title: Canonical Id
+        name:
+          type: string
+          minLength: 1
+          title: Name
+        created_at:
+          type: string
+          title: Created At
+        created_by:
+          title: Created By
+          type: string
+          nullable: true
+      type: object
+      required:
+        - canonical_id
+        - name
+        - created_at
+      title: CompanyCreateResponse
+      description: Response after creating a company.
+    CompanyDetailsResponse:
+      type: object
+    CompanyIdentifier:
+      properties:
+        type:
+          $ref: "#/components/schemas/CompanyIdentifierType"
+          examples:
+            - ORGANIZATION_NUMBER
+        id:
+          type: string
+          minLength: 1
+          title: Id
+          examples:
+            - "817352812"
+      type: object
+      required:
+        - type
+        - id
+      title: CompanyIdentifier
+    CompanyIdentifierType:
+      type: string
+      enum:
+        - ENIGMA_CONNECT_ID
+        - AT_FN
+        - BE_CBE
+        - CH_UID
+        - CZ_ICO
+        - DE_HRB
+        - DK_CVR
+        - EE_RGK
+        - ES_CIF
+        - FI_YTJ
+        - FR_SIREN
+        - FR_SIRET
+        - GB_CRN
+        - GR_GEMI
+        - IE_CRO
+        - IT_REA
+        - LT_IK
+        - LV_UR
+        - NL_KVK
+        - NO_BRREG
+        - PL_KRS
+        - RO_CUI
+        - SE_ORGNR
+        - US_EIN
+        - US_DUNS
+        - TWO
+      title: CompanyIdentifierType
+    CompanySearchResponse:
+      properties:
+        items:
+          items:
+            $ref: "#/components/schemas/SearchCompanyInstance"
+          type: array
+          title: Items
+          description: List of companies matching the search criterion.
+      type: object
+      required:
+        - items
+      title: CompanySearchResponse
+    CompanyType:
+      type: string
+      enum:
+        - SOLE_TRADER
+        - GOVERNMENT
+        - UNDEFINED
+        - PUBLIC_LIMITED_COMPANY
+        - PRIVATE_LIMITED_COMPANY
+        - REGISTERED_PARTNERSHIP
+        - REGISTERED_SOCIETY
+      title: CompanyType
+    CompanyUpdateRequest:
+      properties:
+        name:
+          title: Name
+          type: string
+          minLength: 1
+          nullable: true
+        company_type:
+          $ref: "#/components/schemas/CompanyType"
+          nullable: true
+        status:
+          title: Status
+          type: string
+          nullable: true
+        national_identifier:
+          $ref: "#/components/schemas/CompanyIdentifier"
+          nullable: true
+        identifiers:
+          title: Identifiers
+          items:
+            $ref: "#/components/schemas/CompanyIdentifier"
+          type: array
+          nullable: true
+        addresses:
+          title: Addresses
+          items:
+            $ref: "#/components/schemas/Address"
+          type: array
+          nullable: true
+      type: object
+      title: CompanyUpdateRequest
+      description: Request to update company details (admin only).
+    CompanyUpdateResponse:
+      properties:
+        canonical_id:
+          type: string
+          minLength: 1
+          title: Canonical Id
+        name:
+          type: string
+          minLength: 1
+          title: Name
+        updated_at:
+          type: string
+          title: Updated At
+        updated_by:
+          title: Updated By
+          type: string
+          nullable: true
+      type: object
+      required:
+        - canonical_id
+        - name
+        - updated_at
+      title: CompanyUpdateResponse
+      description: Response after updating company.
+    Error:
+      properties:
+        description:
+          type: string
+          title: Description
+        code:
+          $ref: "#/components/schemas/ErrorCode"
+          default: ERROR
+      type: object
+      required:
+        - description
+      title: Error
+    ErrorCode:
+      type: string
+      enum:
+        - ERROR
+        - INVALID_ORGANIZATION_NUMBER
+        - COMPANY_NOT_FOUND
+        - COMPANY_ADDRESS_NOT_FOUND
+        - COMPANY_ALREADY_EXISTS
+        - UNSUPPORTED_COUNTRY
+        - INVALID_QUERY_PARAMETER
+        - INVALID_CRITERIA
+        - UNSUPPORTED_FEATURE
+        - MULTIPLE_COMPANIES_FOUND
+        - SERVICE_TIMEOUT
+        - SERVICE_UNAVAILABLE
+        - INTERNAL_SERVER_ERROR
+      title: ErrorCode
+    HTTPValidationError:
+      properties:
+        detail:
+          items:
+            $ref: "#/components/schemas/ValidationError"
+          type: array
+          title: Detail
+      type: object
+      title: HTTPValidationError
+    SearchCompanyInstance:
+      properties:
+        name:
+          type: string
+          minLength: 1
+          title: Name
+          examples:
+            - MONOZUKI AS
+        country:
+          title: Country
+          examples:
+            - US
+          type: string
+          maxLength: 2
+          minLength: 2
+          description: Country code as alpha-2 ISO 3166
+          nullable: true
+        national_identifier:
+          description: The identifier that the company is known by in the official registries of its home country, if any.
+          $ref: "#/components/schemas/CompanyIdentifier"
+          nullable: true
+        company_type:
+          $ref: "#/components/schemas/CompanyType"
+          default: UNDEFINED
+          examples:
+            - GOVERNMENT
+        status:
+          title: Status
+          description: The trade status of the company.
+          examples:
+            - ACTIVE
+          type: string
+          nullable: true
+        lookup_id:
+          type: string
+          minLength: 1
+          title: Lookup Id
+          description: "Lookup ID for the company, it can be used later on to get the canonical ID of the company and company details. *NOTE*: This id is not durable, may change during a company's lifetime, and should be regarded as a temporary reference only."
+          examples:
+            - NO817352812
+        additional_information:
+          title: Additional Information
+          description: Arbitrary human-readable information, such as a head-office address or a common trading name, that enables a user to differentiate between two companies with the same name.
+          type: string
+          minLength: 1
+          nullable: true
+        highlight:
+          type: string
+          minLength: 1
+          title: Highlight
+          examples:
+            - <mark><b>MONO</b></mark>ZUKI AS
+      type: object
+      required:
+        - name
+        - lookup_id
+        - highlight
+      title: SearchCompanyInstance
+    ValidationError:
+      properties:
+        loc:
+          items:
+            anyOf:
+              - type: string
+              - type: integer
+          type: array
+          title: Location
+        msg:
+          type: string
+          title: Message
+        type:
+          type: string
+          title: Error Type
+      type: object
+      required:
+        - loc
+        - msg
+        - type
+      title: ValidationError
+    address_type:
+      type: string
+      enum:
+        - BUSINESS_ADDRESS
+        - POSTAL_ADDRESS
+        - UNDEFINED
+        - BRANCH_ADDRESS
+      title: address_type
+  securitySchemes:
+    api-key:
+      type: apiKey
+      in: header
+      name: X-Api-Key

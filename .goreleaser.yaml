@@ -1,0 +1,63 @@
+version: 2
+
+project_name: twoctl
+
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  - id: twoctl
+    main: ./cmd/twoctl
+    binary: twoctl
+    env:
+      - CGO_ENABLED=0
+    goos: [linux, darwin, windows]
+    goarch: [amd64, arm64]
+    ignore:
+      - goos: windows
+        goarch: arm64
+    ldflags:
+      - -s -w
+      - -X github.com/two-inc/twoctl-cli/internal/httpx.Version={{.Version}}
+
+archives:
+  - id: twoctl
+    name_template: >-
+      {{ .ProjectName }}_
+      {{- .Version }}_
+      {{- .Os }}_
+      {{- if eq .Arch "amd64" }}x86_64
+      {{- else if eq .Arch "386" }}i386
+      {{- else }}{{ .Arch }}{{ end }}
+    format_overrides:
+      - goos: windows
+        format: zip
+
+checksum:
+  name_template: 'checksums.txt'
+
+snapshot:
+  version_template: '{{ incpatch .Version }}-next'
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - '^docs:'
+      - '^test:'
+      - '^chore: regenerate'
+
+brews:
+  - name: twoctl
+    repository:
+      owner: two-inc
+      name: homebrew-tap
+      token: '{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}'
+    homepage: 'https://github.com/two-inc/twoctl'
+    description: 'Command-line interface for the Two merchant APIs'
+    license: MIT
+    install: |
+      bin.install "twoctl"
+    test: |
+      system "#{bin}/twoctl --version"

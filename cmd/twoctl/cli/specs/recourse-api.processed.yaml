@@ -1,0 +1,722 @@
+openapi: 3.0.3
+info:
+  title: Two Recourse API
+  version: '1.0'
+  description: |-
+    Our recourse fallback product allows you to fund orders with Two and get a payout from us, even if our risk engine would otherwise reject the order. If you decide to fulfil an order on recourse, that means you are fully liable for any credit and / or fraud risk for the order, meaning in case the customer does not pay us back on time, we may deduct the total order value from your next payout.
+
+    ### In order for you to be eligible to fulfil orders on recourse, you will need 3 things:
+
+    - Ask Two to configure you with a merchant recourse limit
+    - Configure each customer that you want to allow to go on recourse with a customer recourse limit
+    - Start listening to the `approved_on_recourse` field in the Create order or Create repayment plan response
+
+    You can then decide to fulfil any of these orders following the usual process.
+
+
+    ## Environments
+
+    ### Testing
+
+    [https://api.sandbox.two.inc](https://api.sandbox.two.inc/v1/health)
+
+    Note: Read about our [sandbox environment specific behaviour](/docs/guides/sandbox-behaviour-page/).
+
+    ### Production
+
+    [https://api.two.inc](https://api.two.inc/v1/health)
+tags:
+  - name: Merchant Recourse Limit
+  - name: Merchant Customer Recourse Limit
+paths:
+  /v1/portal/merchant/recourse_limit:
+    get:
+      summary: Get merchant recourse limit
+      operationId: get_merchant_recourse_limits_handler.get
+      description: Once you have been successfully set up by Two with recourse, you will be assigned `merchant_recourse_limits`. This means the maximum exposure you may have on recourse across all your customers at a given moment. You will also get in the response the `merchant_recourse_exposure` which will inform you about your current recourse exposure. Hence the difference of these two amounts is your total remaining recourse limit.
+      tags:
+        - Merchant Recourse Limit
+      parameters: []
+      responses:
+        default:
+          description: Error response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MerchantRecourseLimitFullResponseSchema'
+        '404':
+          description: No merchant_recourse_limit found for provided merchant
+  /v1/merchant/buyer_recourse_limit:
+    post:
+      summary: Add customer recourse limit
+      operationId: add_merchant_buyer_recourse_limit_handler.post
+      description: To set a customer up on recourse, you need to send us the `max_amount`, representing the maximum exposure you are comfortable to have towards this customer. This step is required before being able to create or fulfil orders for a customer beyond their Two credit limit. Remember that you take full liability for this amount in case the customer does not pay us back on time. You will have to set up a recourse limit for each currency separately.
+      tags:
+        - Merchant Customer Recourse Limit
+      parameters: []
+      responses:
+        default:
+          description: Error response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '201':
+          description: Buyer company recourse limit added
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MerchantBuyerRecourseLimitResponseBaseSchema'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateMerchantBuyerRecourseLimitRequestSchema'
+  /v1/merchant/buyer_recourse_limit/{buyer_canonical_id}:
+    get:
+      summary: Get customer recourse limit by canonical ID
+      operationId: get_merchant_buyer_recourse_limit_by_canonical_id_handler.get
+      description: Endpoint to retrieve a specific customer's recourse limits using their canonical company ID. This is the preferred method as it uniquely identifies companies across all countries.
+      tags:
+        - Merchant Customer Recourse Limit
+      parameters:
+        - name: buyer_canonical_id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: The canonical ID of the buyer company
+      responses:
+        default:
+          description: Error response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MerchantBuyerAvailableRecourseLimitResponseSchema'
+    put:
+      summary: Update or disable customer's recourse limit by canonical ID
+      operationId: put_merchant_buyer_recourse_limit_by_canonical_id_handler.put
+      description: 'This endpoint is to edit a previously added recourse limit for a specific customer using their canonical company ID. Note: `max_amount=0` will disable recourse for this customer.'
+      tags:
+        - Merchant Customer Recourse Limit
+      parameters:
+        - name: buyer_canonical_id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: The canonical ID of the buyer company
+      responses:
+        default:
+          description: Error response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '200':
+          description: ''
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PutMerchantBuyerRecourseLimitRequestSchema'
+  /v1/merchant/buyer_recourse_limit/{buyer_country_code}/{buyer_organization_number}:
+    get:
+      summary: Get customer recourse limit
+      operationId: get_merchant_buyer_recourse_limit_handler.get
+      description: Endpoint to retrieve a specific customer's recourse limits set up by you. Remember that a customer needs to be set up on recourse by you in the currency you are trading in prior to you being able to fulfil orders on recourse with them.
+      tags:
+        - Merchant Customer Recourse Limit
+      parameters:
+        - name: buyer_country_code
+          in: path
+          required: true
+          schema:
+            type: string
+          description: country code of the buyer customer recourse to be retrieved in ISO 3166 Alpha-2 format
+        - name: buyer_organization_number
+          in: path
+          required: true
+          schema:
+            type: string
+          description: country-specific organization number of the customer company
+      responses:
+        default:
+          description: Error response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MerchantBuyerAvailableRecourseLimitResponseSchema'
+    put:
+      summary: Update or disable customer's recourse limit
+      operationId: put_merchant_buyer_recourse_limit_handler.put
+      description: 'This endpoint is to edit a previously added recourse limit for a specific customer or to disable it. Note: `max_amount=0` will disable recourse for this customer.'
+      tags:
+        - Merchant Customer Recourse Limit
+      parameters:
+        - name: buyer_country_code
+          in: path
+          required: true
+          schema:
+            type: string
+          description: country code of the buyer customer recourse to be retrieved in ISO 3166 Alpha-2 format
+        - name: buyer_organization_number
+          in: path
+          required: true
+          schema:
+            type: string
+          description: country-specific organization number of the customer company
+      responses:
+        default:
+          description: Error response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '200':
+          description: ''
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PutMerchantBuyerRecourseLimitRequestSchema'
+components:
+  schemas:
+    ErrorResponse:
+      properties:
+        error_code:
+          default: null
+          description: An error code related to the error.
+          title: Error Code
+          type: string
+          nullable: true
+        error_details:
+          default: null
+          description: A detailed description of the error when available.
+          title: Error Details
+          type: string
+          nullable: true
+        error_message:
+          default: null
+          description: A short description of the error.
+          title: Error Message
+          type: string
+          nullable: true
+        error_json:
+          default: null
+          description: A list of errors when available.
+          title: Error Json
+          items:
+            $ref: '#/components/schemas/ErrorJSON'
+          type: array
+          nullable: true
+        error_trace_id:
+          default: null
+          description: A unique trace ID for the request that generated the error. Please quote this trace ID in any support requests.
+          title: Error Trace Id
+          type: string
+          nullable: true
+      title: ErrorResponse
+      type: object
+    ErrorJSON:
+      properties:
+        loc:
+          default: null
+          description: Error location.
+          title: Loc
+          items:
+            anyOf:
+              - type: string
+              - type: integer
+          type: array
+          nullable: true
+        msg:
+          default: null
+          description: Error message.
+          title: Msg
+          type: string
+          nullable: true
+        type:
+          default: null
+          description: Error type.
+          title: Type
+          type: string
+          nullable: true
+        ctx:
+          anyOf:
+            - type: string
+            - additionalProperties: true
+              type: object
+          default: null
+          description: Error context information.
+          title: Ctx
+          nullable: true
+      title: ErrorJSON
+      type: object
+    MerchantRecourseLimitFullResponseSchema:
+      properties:
+        merchant_recourse_limits:
+          description: This is the maximum exposure a merchant can have at any given time across all customers on recourse.
+          items:
+            $ref: '#/components/schemas/MerchantRecourseLimitResponseSchema'
+          title: Merchant Recourse Limits
+          type: array
+        merchant_recourse_exposure:
+          description: A list of recourse exposure amounts and their respective currencies for the merchant
+          items:
+            $ref: '#/components/schemas/MerchantRecourseExposure'
+          title: Merchant Recourse Exposure
+          type: array
+        merchant_remaining_recourse_limit:
+          description: A list of remaining recourse limits and their respective currencies for the merchant
+          items:
+            $ref: '#/components/schemas/MerchantRemainingRecourseLimit'
+          title: Merchant Remaining Recourse Limit
+          type: array
+      required:
+        - merchant_recourse_limits
+        - merchant_recourse_exposure
+        - merchant_remaining_recourse_limit
+      title: MerchantRecourseLimitFullResponseSchema
+      type: object
+    CurrencyEnum:
+      enum:
+        - CHF
+        - CZK
+        - DKK
+        - EUR
+        - GBP
+        - INR
+        - MXN
+        - NOK
+        - PLN
+        - RON
+        - SEK
+        - USD
+      title: CurrencyEnum
+      type: string
+    MerchantRecourseExposure:
+      properties:
+        total_exposure_on_recourse:
+          description: Total exposure amount on recourse
+          format: decimal
+          pattern: ^-?[0-9]+(\.[0-9]{0,2})?
+          title: Total Exposure On Recourse
+          type: string
+        currency:
+          $ref: '#/components/schemas/CurrencyEnum'
+          description: Currency code in ISO 4217 format. E.g. 'NOK'
+      required:
+        - total_exposure_on_recourse
+        - currency
+      title: MerchantRecourseExposure
+      type: object
+    MerchantRecourseLimitResponseSchema:
+      properties:
+        id:
+          description: A globally unique ID set by Two.
+          minLength: 1
+          title: Id
+          type: string
+        max_amount:
+          description: This is the maximum amount of order value the merchant can accept on recourse from customers with insufficient credit limits
+          format: decimal
+          pattern: ^-?[0-9]+(\.[0-9]{0,2})?
+          title: Max Amount
+          type: string
+        merchant_id:
+          description: A globally unique ID set by Two.
+          minLength: 1
+          title: Merchant Id
+          type: string
+        recourse_fallback_enabled:
+          description: Flag to indicate whether this merchant is enabled for recourse fallback
+          title: Recourse Fallback Enabled
+          type: boolean
+        currency:
+          $ref: '#/components/schemas/CurrencyEnum'
+          description: Currency code in ISO 4217 format. E.g. 'NOK'
+      required:
+        - id
+        - max_amount
+        - merchant_id
+        - recourse_fallback_enabled
+        - currency
+      title: MerchantRecourseLimitResponseSchema
+      type: object
+    MerchantRemainingRecourseLimit:
+      properties:
+        remaining_recourse_limit:
+          description: The amount of the recourse limit in this currency that has not yet been used
+          format: decimal
+          pattern: ^-?[0-9]+(\.[0-9]{0,2})?
+          title: Remaining Recourse Limit
+          type: string
+        currency:
+          $ref: '#/components/schemas/CurrencyEnum'
+          description: Currency code in ISO 4217 format. E.g. 'NOK'
+      required:
+        - remaining_recourse_limit
+        - currency
+      title: MerchantRemainingRecourseLimit
+      type: object
+    CreateMerchantBuyerRecourseLimitRequestSchema:
+      properties:
+        buyer_organization_number:
+          default: null
+          description: Country-specific buyer organization number (required if canonical_id not provided)
+          title: Buyer Organization Number
+          type: string
+          nullable: true
+        buyer_country_code:
+          default: null
+          description: Buyer's country code in ISO 3166 Alpha-2 format (required if canonical_id not provided)
+          $ref: '#/components/schemas/CountryCodeEnum'
+          nullable: true
+        max_amount:
+          default: null
+          description: Maximum risk exposure you are comfortable to have towards this customer/buyer - we won't allow you to create new orders for this customer on recourse if it would bring their total value of unpaid orders above this limit
+          title: Max Amount
+          format: decimal
+          pattern: ^-?[0-9]+(\.[0-9]{0,2})?
+          type: string
+          nullable: true
+        currency:
+          $ref: '#/components/schemas/CurrencyEnum'
+          description: Currency code in ISO 4217 format. E.g. 'NOK'
+        canonical_id:
+          default: null
+          description: Canonical company identifier
+          title: Canonical Id
+          type: string
+          nullable: true
+        override_max_merchant_buyer_recourse_limit:
+          default: false
+          description: When true, bypasses the merchant-buyer recourse cap and validates against the higher buyer-level cap instead. Requires admin portal session.
+          title: Override Max Merchant Buyer Recourse Limit
+          type: boolean
+      required:
+        - currency
+      title: CreateMerchantBuyerRecourseLimitRequestSchema
+      type: object
+    CountryCodeEnum:
+      enum:
+        - AD
+        - AE
+        - AL
+        - AM
+        - AO
+        - AR
+        - AT
+        - AU
+        - AZ
+        - BA
+        - BB
+        - BD
+        - BE
+        - BF
+        - BG
+        - BH
+        - BI
+        - BJ
+        - BN
+        - BO
+        - BR
+        - BS
+        - BW
+        - CA
+        - CG
+        - CH
+        - CL
+        - CM
+        - CO
+        - CR
+        - CY
+        - CZ
+        - DE
+        - DJ
+        - DK
+        - DO
+        - DZ
+        - EC
+        - EE
+        - EG
+        - ES
+        - ET
+        - FI
+        - FJ
+        - FR
+        - GA
+        - GB
+        - GE
+        - GH
+        - GN
+        - GQ
+        - GR
+        - GT
+        - GY
+        - HN
+        - HR
+        - HT
+        - HU
+        - ID
+        - IE
+        - IL
+        - IN
+        - IQ
+        - IS
+        - IT
+        - JM
+        - JO
+        - JP
+        - KE
+        - KG
+        - KH
+        - KR
+        - KW
+        - KZ
+        - LA
+        - LB
+        - LI
+        - LK
+        - LT
+        - LU
+        - LV
+        - LR
+        - MA
+        - MC
+        - MD
+        - ME
+        - MG
+        - MK
+        - MN
+        - MR
+        - MT
+        - MU
+        - MV
+        - MW
+        - MX
+        - MY
+        - MZ
+        - NA
+        - NE
+        - NG
+        - NL
+        - 'NO'
+        - NP
+        - NZ
+        - OM
+        - PA
+        - PE
+        - PG
+        - PH
+        - PK
+        - PL
+        - PT
+        - PY
+        - QA
+        - RO
+        - RS
+        - RW
+        - SA
+        - SE
+        - SG
+        - SI
+        - SK
+        - SL
+        - SN
+        - SR
+        - SV
+        - SZ
+        - TD
+        - TG
+        - TH
+        - TJ
+        - TM
+        - TN
+        - TR
+        - TT
+        - TZ
+        - UA
+        - UG
+        - US
+        - UY
+        - UZ
+        - VN
+        - ZA
+        - ZM
+      title: CountryCodeEnum
+      type: string
+    MerchantBuyerRecourseLimitResponseBaseSchema:
+      properties:
+        id:
+          description: A globally unique ID set by Two.
+          title: Id
+          type: string
+        merchant_id:
+          description: A globally unique merchant ID set by Two.
+          title: Merchant Id
+          type: string
+        buyer_organization_number:
+          description: Country-specific buyer organization number
+          title: Buyer Organization Number
+          type: string
+        buyer_country_code:
+          $ref: '#/components/schemas/CountryCodeEnum'
+          description: Buyer's country code (in ISO 3166 Alpha-2 format). E.g. 'GB'
+        currency:
+          $ref: '#/components/schemas/CurrencyEnum'
+          description: Currency code in ISO 4217 format. E.g. 'NOK'
+      required:
+        - id
+        - merchant_id
+        - buyer_organization_number
+        - buyer_country_code
+        - currency
+      title: MerchantBuyerRecourseLimitResponseBaseSchema
+      type: object
+    MerchantBuyerAvailableRecourseLimitResponseSchema:
+      properties:
+        id:
+          description: A globally unique ID set by Two.
+          title: Id
+          type: string
+        merchant_id:
+          description: A globally unique merchant ID set by Two.
+          title: Merchant Id
+          type: string
+        buyer_organization_number:
+          description: Country-specific buyer organization number
+          title: Buyer Organization Number
+          type: string
+        buyer_country_code:
+          $ref: '#/components/schemas/CountryCodeEnum'
+          description: Buyer's country code (in ISO 3166 Alpha-2 format). E.g. 'GB'
+        currency:
+          $ref: '#/components/schemas/CurrencyEnum'
+          description: Currency code in ISO 4217 format. E.g. 'NOK'
+        merchant_buyer_recourse_limit:
+          default: null
+          description: Total recourse limit amount for this customer/buyer
+          title: Merchant Buyer Recourse Limit
+          format: decimal
+          pattern: ^-?[0-9]+(\.[0-9]{0,2})?
+          type: string
+          nullable: true
+        merchant_buyer_recourse_exposure:
+          default: null
+          description: Recourse exposure amount for this customer/buyer
+          title: Merchant Buyer Recourse Exposure
+          format: decimal
+          pattern: ^-?[0-9]+(\.[0-9]{0,2})?
+          type: string
+          nullable: true
+        merchant_buyer_available_recourse_limit:
+          default: null
+          description: Available recourse limit amount for this customer/buyer
+          title: Merchant Buyer Available Recourse Limit
+          format: decimal
+          pattern: ^-?[0-9]+(\.[0-9]{0,2})?
+          type: string
+          nullable: true
+        buyer_available_recourse_limit:
+          default: null
+          description: Effective available recourse limit amount for this customer/buyer
+          title: Buyer Available Recourse Limit
+          format: decimal
+          pattern: ^-?[0-9]+(\.[0-9]{0,2})?
+          type: string
+          nullable: true
+      required:
+        - id
+        - merchant_id
+        - buyer_organization_number
+        - buyer_country_code
+        - currency
+      title: MerchantBuyerAvailableRecourseLimitResponseSchema
+      type: object
+    PutMerchantBuyerRecourseLimitRequestSchema:
+      properties:
+        buyer_organization_number:
+          default: null
+          deprecated: true
+          description: The organization number of the buyer. If provided, must match that of the company referenced in the path parameters. Should be omitted.
+          title: Buyer Organization Number
+          type: string
+          nullable: true
+        buyer_country_code:
+          default: null
+          deprecated: true
+          description: The country in which the buyer is registered. If provided, must match that of the company referenced in the path parameters. Should be omitted.
+          $ref: '#/components/schemas/CountryCodeEnum'
+          nullable: true
+        max_amount:
+          default: null
+          description: Maximum risk exposure you are comfortable to have towards this customer/buyer - we won't allow you to create new orders for this customer on recourse if it would bring their total value of unpaid orders above this limit
+          title: Max Amount
+          format: decimal
+          pattern: ^-?[0-9]+(\.[0-9]{0,2})?
+          type: string
+          nullable: true
+        currency:
+          $ref: '#/components/schemas/CurrencyEnum'
+          description: Currency code in ISO 4217 format. E.g. 'NOK'
+        buyer_canonical_id:
+          default: null
+          deprecated: true
+          description: Canonical company identifier. If provided, must match that of the company referenced in the path parameters. Should be omitted.
+          title: Buyer Canonical Id
+          type: string
+          nullable: true
+        override_max_merchant_buyer_recourse_limit:
+          default: false
+          description: When true, bypasses the merchant-buyer recourse cap and validates against the higher buyer-level cap instead. Requires admin portal session.
+          title: Override Max Merchant Buyer Recourse Limit
+          type: boolean
+      required:
+        - currency
+      title: PutMerchantBuyerRecourseLimitRequestSchema
+      type: object
+  securitySchemes:
+    X-Api-Key:
+      type: apiKey
+      description: |-
+        For instructions on how to obtain API keys, visit [this page](/docs/guides/getting-api-keys-page/).
+        You will obtain two different keys, an initial one for testing in our sandbox environment and once ready, for production.
+        Your API keys enables others to act on your behalf if they are able to obtain them, so make sure to keep them safe.
+        Your API key is not to be shared with anyone, including in your version control system, client-side code, in public chatrooms and so on.
+        The API key is applied in the request header. For example:
+        ```
+        GET /something
+        X-Api-Key: secret_test_aabbccddeeff0123456789
+        ```
+
+        API Keys have the following structure: `secret_<env>_<key>` where:
+        - `env` is determined by the environment (`prod` for production, `test` for test environments)
+        - `key` is a random, URL-safe, 64-bit encoded text string containing 32 random bytes.
+      name: X-Api-Key
+      in: header
+servers:
+  - url: https://api.sandbox.two.inc
+    description: Testing
+  - url: https://api.two.inc
+    description: Production
+security: []

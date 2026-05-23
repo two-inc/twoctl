@@ -1,0 +1,13 @@
+/dist/
+/bin/
+/twoctl
+*.test
+*.out
+.DS_Store
+.idea/
+.vscode/
+.worktrees/
+coverage.txt
+.build/
+/preprocess
+coverage.html

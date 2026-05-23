@@ -1,0 +1,29 @@
+# Template to add to two-inc/docs/.github/workflows/notify-twoctl.yml
+#
+# Fires a repository_dispatch into two-inc/twoctl whenever the openapi/
+# specs change on the docs default branch. twoctl's `regenerate` workflow
+# listens for this event.
+#
+# Required secret in two-inc/docs:
+#   TWOCTL_DISPATCH_TOKEN - a PAT (fine-grained, scope: contents:read +
+#                          actions:write) on the two-inc/twoctl repo.
+
+name: notify-twoctl
+
+on:
+  push:
+    branches: [main, staging]
+    paths:
+      - 'openapi/**'
+
+jobs:
+  dispatch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger twoctl regen
+        env:
+          GH_TOKEN: ${{ secrets.TWOCTL_DISPATCH_TOKEN }}
+        run: |
+          gh api repos/two-inc/twoctl/dispatches \
+            -f event_type=openapi-updated \
+            -f client_payload[ref]=${{ github.sha }}

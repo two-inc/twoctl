@@ -1,0 +1,3933 @@
+openapi: 3.1.0
+info:
+    title: Two Marketplace API
+    version: '1.0'
+    description: |-
+        This API is for creating new merchants as a part of a marketplace setup using Two.
+        The merchants that are onboarded through the markeplace are able to sell products or services with Two as the payment solution.
+
+        Note: Only authorised merchants will have access to use this API. Feel free to contact support@two.inc if you think this API might be relevant for your marketplace setup.
+
+        Specifically:
+
+        - Sign up merchants with Two through your own solution
+        - Get information about the registered Two merchants
+        - Update information of registered Two merchant
+        - Use the Two Checkout API with API keys for each inidividual merchant when creating and handling orders
+
+        ### Step 1: Create and onboard merchant with Two
+        Do a `POST /partner/v1/merchant` with the required information to sign up a merchant with Two.
+
+        Keep note of the merchant's `id` in the response (hereby referred to as `merchant_id`) in the response.
+        You can then add `X-Merchant-Id: <merchant_id>` to requests that require `X-Api-Key` header and execute our endpoints on behalf of the merchant. For example:
+        ```
+        GET /something
+        X-Api-Key: <your_api_key>
+        X-Merchant-Id: <merchant_id>
+        ```
+
+        ### Step 2: Create order (Checkout API)
+        Do a `POST /v1/order` from the Checkout API by using `secret_api_key` of the specific merchant as authentication.
+
+        ### Other:
+        - Get all your marketplace merchants `GET /partner/v1/merchant`
+        - Get specific marketplace merchant `GET /partner/v1/merchant/<merchant_id>`
+        - Update specific marketplace merchant `PATCH /partner/v1/merchant/<merchant_id>`
+
+        Note: All Checkout API features are available for the merchant onboarded with Two.
+
+
+        ## Environments
+
+        ### Testing
+
+        [https://api.sandbox.two.inc](https://api.sandbox.two.inc/v1/health)
+
+        Note: Read about our [sandbox environment specific behaviour](/docs/guides/sandbox-behaviour-page/).
+
+        ### Production
+
+        [https://api.two.inc](https://api.two.inc/v1/health)
+tags:
+-   name: Marketplace V1
+-   name: Marketplace V2
+paths:
+    /partner/v1/merchant:
+        post:
+            summary: Create marketplace merchant
+            operationId: create_partner_merchant_handler_v1.post
+            description: 'Create a new merchant who can sell products or services
+                through Two. Note: The legacy endpoint `/v1/partner/{partner_id}/merchant`
+                is deprecated but still supported for backward compatibility.'
+            tags:
+            - Marketplace V1
+            parameters: []
+            responses:
+                default:
+                    description: Error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorResponse'
+                '201':
+                    description: Merchant created
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/CreatePartnerMerchantResponseSchema'
+                '403':
+                    description: Access denied
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorResponse'
+                '409':
+                    description: Merchant already exists
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorResponse'
+            security:
+            -   X-Api-Key: []
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/CreatePartnerMerchantRequestSchema'
+                        examples:
+                            GB merchant:
+                                value:
+                                    short_name: testshortname
+                                    logo_path: https://test.com/test.png
+                                    national_id: '13078389'
+                                    legal_name: Two B2B LIMITED
+                                    email: test@two.inc
+                                    email_erp: erp@two.inc
+                                    email_invoice: invoice@two.inc
+                                    phone: '12345678'
+                                    phone_invoice: '12345670'
+                                    website: https://two.inc
+                                    address_lines: Test Square
+                                    address_city: London
+                                    address_postal_code: AED 12A
+                                    address_country_code: GB
+                                    fixed_fee_per_order: '0.0'
+                                    percentage_fee_per_order: '2.0'
+                                    country_code: GB
+                                    payment_provider_details:
+                                        bank_account:
+                                            description: Bank Account Test
+                                            branch_sort_code: 04-00-11
+                                            local_account_number: '31126819'
+                                            country_code: GB
+                            NO merchant:
+                                value:
+                                    short_name: testshortname
+                                    logo_path: https://test.com/test.png
+                                    national_id: '925976105'
+                                    legal_name: Two AS
+                                    email: test@two.inc
+                                    email_erp: erp@two.inc
+                                    email_invoice: invoice@two.inc
+                                    phone: '12345678'
+                                    phone_invoice: '12345670'
+                                    website: https://two.inc
+                                    address_lines: Testplass 1
+                                    address_city: OSLO
+                                    address_postal_code: '1111'
+                                    address_country_code: 'NO'
+                                    fixed_fee_per_order: '0.0'
+                                    percentage_fee_per_order: '2.0'
+                                    country_code: 'NO'
+                                    payment_provider_details:
+                                        bank_account:
+                                            description: Bank Account Test
+                                            bban: '11111111111'
+                                            iban: NO9311111111111
+                                            bic: DNBANOKK
+                                            country_code: 'NO'
+        get:
+            summary: Get all marketplace merchants
+            operationId: get_partners_merchant_handler_v1.get
+            description: 'Retrieve all merchants associated with your marketplace.
+                Note: The legacy endpoint `/v1/partner/{partner_id}/merchant` is deprecated
+                but still supported for backward compatibility.'
+            tags:
+            - Marketplace V1
+            parameters: []
+            responses:
+                default:
+                    description: Error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorResponse'
+                '200':
+                    description: Merchant
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/MerchantResponseListSchema'
+                '403':
+                    description: Access denied
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorResponse'
+                '404':
+                    description: Merchant not found
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorResponse'
+            security:
+            -   X-Api-Key: []
+    /partner/v1/merchant/{merchant_id}:
+        get:
+            summary: Get marketplace merchant
+            operationId: get_partner_merchant_handler_v1.get
+            description: 'Retrieve information about a specific merchant by ID. Note:
+                The legacy endpoint `/v1/partner/{partner_id}/merchant/{merchant_id}`
+                is deprecated but still supported for backward compatibility.'
+            tags:
+            - Marketplace V1
+            parameters:
+            -   name: merchant_id
+                in: path
+                required: true
+                schema:
+                    type: string
+                description: ''
+            responses:
+                default:
+                    description: Error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorResponse'
+                '200':
+                    description: Merchant response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/MerchantResponseSchema'
+                '403':
+                    description: Access denied
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorResponse'
+                '404':
+                    description: Merchant not found
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorResponse'
+            security:
+            -   X-Api-Key: []
+        patch:
+            summary: Update marketplace merchant
+            operationId: update_partner_merchant_handler_v1.patch
+            description: 'Update details of a specific merchant associated with your
+                marketplace. Note: The legacy endpoint `/v1/partner/{partner_id}/merchant/{merchant_id}`
+                is deprecated but still supported for backward compatibility.'
+            tags:
+            - Marketplace V1
+            parameters:
+            -   name: merchant_id
+                in: path
+                required: true
+                schema:
+                    type: string
+                description: ''
+            responses:
+                default:
+                    description: Error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorResponse'
+                '200':
+                    description: Success
+                '403':
+                    description: Access denied
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorResponse'
+                '404':
+                    description: Merchant not found
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorResponse'
+            security:
+            -   X-Api-Key: []
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/UpdatePartnerMerchantSchema'
+                        examples:
+                            GB merchant:
+                                value:
+                                    national_id: '925976105'
+                                    legal_name: Two B2B LIMITED
+                                    email: test@two.inc
+                                    email_erp: erp@two.inc
+                                    email_invoice: invoice@two.inc
+                                    phone: '12345678'
+                                    phone_invoice: '12345670'
+                                    website: https://two.inc
+                                    address_lines: Test Square
+                                    address_city: London
+                                    address_postal_code: AED 12A
+                                    address_country_code: GB
+                                    payment_provider_details:
+                                        bank_account:
+                                            description: Bank Account Test
+                                            branch_sort_code: 04-00-11
+                                            local_account_number: '31126819'
+                                            country_code: GB
+                            NO merchant:
+                                value:
+                                    national_id: '13078389'
+                                    legal_name: Two AS
+                                    email: test@two.inc
+                                    email_erp: erp@two.inc
+                                    email_invoice: invoice@two.inc
+                                    phone: '12345678'
+                                    phone_invoice: '12345670'
+                                    website: https://two.inc
+                                    address_lines: Test plass
+                                    address_city: Oslo
+                                    address_postal_code: '1111'
+                                    address_country_code: 'NO'
+                                    payment_provider_details:
+                                        bank_account:
+                                            description: Bank Account Test
+                                            bban: '11111111111'
+                                            iban: NO9311111111111
+                                            bic: DNBANOKK
+                                            country_code: 'NO'
+    /partner/v1/iban_accounts:
+        get:
+            summary: Get IBAN collection accounts
+            operationId: get_partner_iban_accounts_v1.get
+            description: 'Returns IBAN collection account details for eligible partners.
+                Access is restricted - please contact Two support for more information.
+                Note: The legacy endpoint `/v1/partner/iban_accounts` is deprecated
+                but still supported for backward compatibility.'
+            tags:
+            - Marketplace V1
+            parameters: []
+            responses:
+                default:
+                    description: Error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorResponse'
+                '200':
+                    description: Client' specific JSON
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/IbanAccounts'
+                '403':
+                    description: Access denied
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorResponse'
+                '404':
+                    description: Merchant not found
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorResponse'
+            security:
+            -   X-Api-Key: []
+    /partner/v2/merchant:
+        post:
+            summary: Create marketplace merchant
+            operationId: create_partner_merchant_handler_v2.post
+            description: Create a new merchant who can sell products or services through
+                Two.
+            tags:
+            - Marketplace V2
+            parameters: []
+            responses:
+                default:
+                    description: Error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorResponse'
+                '201':
+                    description: Merchant created
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/CreatePartnerMerchantResponseSchemaV2'
+                '403':
+                    description: Access denied
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorResponse'
+                '409':
+                    description: Merchant already exists
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorResponse'
+            security:
+            -   X-Api-Key: []
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/CreatePartnerMerchantRequestSchemaV2'
+                        examples:
+                            GB merchant:
+                                value:
+                                    short_name: testshortname
+                                    logo_path: https://test.com/test.png
+                                    national_id: '13078389'
+                                    legal_name: Two B2B LIMITED
+                                    email: test@two.inc
+                                    email_erp: erp@two.inc
+                                    email_invoice: invoice@two.inc
+                                    phone: '12345678'
+                                    phone_invoice: '12345670'
+                                    website: https://two.inc
+                                    address_lines: Test Square
+                                    address_city: London
+                                    address_postal_code: AED 12A
+                                    address_country_code: GB
+                                    fixed_fee_per_order: '0.0'
+                                    percentage_fee_per_order: '2.0'
+                                    country_code: GB
+                                    payment_provider_details:
+                                        bank_account:
+                                            description: Bank Account Test
+                                            branch_sort_code: 04-00-11
+                                            local_account_number: '31126819'
+                                            country_code: GB
+                            NO merchant:
+                                value:
+                                    short_name: testshortname
+                                    logo_path: https://test.com/test.png
+                                    national_id: '925976105'
+                                    legal_name: Two AS
+                                    email: test@two.inc
+                                    email_erp: erp@two.inc
+                                    email_invoice: invoice@two.inc
+                                    phone: '12345678'
+                                    phone_invoice: '12345670'
+                                    website: https://two.inc
+                                    address_lines: Testplass 1
+                                    address_city: OSLO
+                                    address_postal_code: '1111'
+                                    address_country_code: 'NO'
+                                    fixed_fee_per_order: '0.0'
+                                    percentage_fee_per_order: '2.0'
+                                    country_code: 'NO'
+                                    payment_provider_details:
+                                        bank_account:
+                                            description: Bank Account Test
+                                            bban: '11111111111'
+                                            iban: NO9311111111111
+                                            bic: DNBANOKK
+                                            country_code: 'NO'
+        get:
+            summary: Get all marketplace merchants
+            operationId: get_partners_merchant_handler_v2.get
+            description: Retrieve all merchants associated with your marketplace.
+            tags:
+            - Marketplace V2
+            parameters: []
+            responses:
+                default:
+                    description: Error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorResponse'
+                '200':
+                    description: Merchants
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/PartnerMerchantResponseListSchemaV2'
+                '403':
+                    description: Access denied
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorResponse'
+                '404':
+                    description: Merchant not found
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorResponse'
+            security:
+            -   X-Api-Key: []
+    /partner/v2/merchant/{merchant_id_or_short_name}:
+        get:
+            summary: Get marketplace merchant
+            operationId: get_partner_merchant_by_id_or_shortname_handler_v2.get
+            description: Retrieve information about a specific merchant by ID or short
+                name associated with your marketplace.
+            tags:
+            - Marketplace V2
+            parameters:
+            -   name: merchant_id_or_short_name
+                in: path
+                required: true
+                schema:
+                    type: string
+                description: ''
+            responses:
+                default:
+                    description: Error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorResponse'
+                '200':
+                    description: Merchant
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/PartnerMerchantResponseSchemaV2'
+                '403':
+                    description: Access denied
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorResponse'
+                '404':
+                    description: Merchant not found
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorResponse'
+            security:
+            -   X-Api-Key: []
+components:
+    schemas:
+        ErrorResponse:
+            properties:
+                error_code:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    description: An error code related to the error.
+                    title: Error Code
+                error_details:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    description: A detailed description of the error when available.
+                    title: Error Details
+                error_message:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    description: A short description of the error.
+                    title: Error Message
+                error_json:
+                    anyOf:
+                    -   items:
+                            $ref: '#/components/schemas/ErrorJSON'
+                        type: array
+                    -   type: 'null'
+                    default: null
+                    description: A list of errors when available.
+                    title: Error Json
+                error_trace_id:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    description: A unique trace ID for the request that generated
+                        the error. Please quote this trace ID in any support requests.
+                    title: Error Trace Id
+            title: ErrorResponse
+            type: object
+        ErrorJSON:
+            properties:
+                loc:
+                    anyOf:
+                    -   items:
+                            anyOf:
+                            -   type: string
+                            -   type: integer
+                        type: array
+                    -   type: 'null'
+                    default: null
+                    description: Error location.
+                    title: Loc
+                msg:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    description: Error message.
+                    title: Msg
+                type:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    description: Error type.
+                    title: Type
+                ctx:
+                    anyOf:
+                    -   type: string
+                    -   additionalProperties: true
+                        type: object
+                    -   type: 'null'
+                    default: null
+                    description: Error context information.
+                    title: Ctx
+            title: ErrorJSON
+            type: object
+        CreatePartnerMerchantRequestSchema:
+            examples:
+            -   address_city: London
+                address_country_code: GB
+                address_lines: Test Square
+                address_postal_code: AED 12A
+                country_code: GB
+                email: test@two.inc
+                email_erp: erp@two.inc
+                email_invoice: invoice@two.inc
+                fixed_fee_per_order: '0.0'
+                legal_name: Two B2B LIMITED
+                logo_path: https://test.com/test.png
+                national_id: '13078389'
+                payment_provider_details:
+                    bank_account:
+                        branch_sort_code: 04-00-11
+                        country_code: GB
+                        description: Bank Account Test
+                        local_account_number: '31126819'
+                percentage_fee_per_order: '2.0'
+                phone: '12345678'
+                phone_invoice: '12345670'
+                short_name: testshortname
+                website: https://two.inc
+            -   address_city: OSLO
+                address_country_code: 'NO'
+                address_lines: Testplass 1
+                address_postal_code: '1111'
+                country_code: 'NO'
+                email: test@two.inc
+                email_erp: erp@two.inc
+                email_invoice: invoice@two.inc
+                fixed_fee_per_order: '0.0'
+                legal_name: Two AS
+                logo_path: https://test.com/test.png
+                national_id: '925976105'
+                payment_provider_details:
+                    bank_account:
+                        bban: '11111111111'
+                        bic: DNBANOKK
+                        country_code: 'NO'
+                        description: Bank Account Test
+                        iban: NO9311111111111
+                percentage_fee_per_order: '2.0'
+                phone: '12345678'
+                phone_invoice: '12345670'
+                short_name: testshortname
+                website: https://two.inc
+            properties:
+                id:
+                    anyOf:
+                    -   format: uuid
+                        type: string
+                    -   type: 'null'
+                    default: null
+                    description: Unique ID of the merchant
+                    title: Id
+                short_name:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    deprecated: true
+                    description: Short name of the merchant
+                    title: Short Name
+                logo_path:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    description: 'The logo URL, valid extensions are: .png, .svg'
+                    title: Logo Path
+                vat_number:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    description: The VAT number of the merchant
+                    title: Vat Number
+                vat_registered:
+                    anyOf:
+                    -   type: boolean
+                    -   type: 'null'
+                    default: null
+                    description: Whether the merchant is VAT registered
+                    title: Vat Registered
+                country_code:
+                    anyOf:
+                    -   $ref: '#/components/schemas/CountryCodeEnum'
+                    -   type: 'null'
+                    default: null
+                    description: Country code of the merchant
+                national_id:
+                    description: National ID of the merchant
+                    title: National Id
+                    type: string
+                legal_name:
+                    description: Legal name of the merchant
+                    title: Legal Name
+                    type: string
+                display_name:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    description: The display name of the merchant
+                    title: Display Name
+                website:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    description: The website of the merchant
+                    title: Website
+                email:
+                    description: The email of the merchant
+                    format: email
+                    title: Email
+                    type: string
+                email_invoice:
+                    anyOf:
+                    -   format: email
+                        type: string
+                    -   type: 'null'
+                    default: null
+                    description: The email for invoices of the merchant
+                    title: Email Invoice
+                email_erp:
+                    anyOf:
+                    -   format: email
+                        type: string
+                    -   type: 'null'
+                    default: null
+                    description: The email for ERP of the merchant
+                    title: Email Erp
+                phone:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    description: Phone number of the merchant
+                    title: Phone
+                phone_invoice:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    description: Phone number for invoices of the merchant
+                    title: Phone Invoice
+                address_lines:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    description: The address lines of the merchant
+                    title: Address Lines
+                address_city:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    description: City of the merchant
+                    title: Address City
+                address_postal_code:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    description: Postal code of the merchant
+                    title: Address Postal Code
+                address_country_code:
+                    anyOf:
+                    -   $ref: '#/components/schemas/CountryCodeEnum'
+                    -   type: 'null'
+                    default: null
+                    description: Country code of the merchant
+                fee_currency:
+                    anyOf:
+                    -   $ref: '#/components/schemas/CurrencyEnum'
+                    -   type: 'null'
+                    default: null
+                    description: The currency of the fees
+                fixed_fee_per_order:
+                    anyOf:
+                    -   format: decimal
+                        pattern: ^-?[0-9]+(\.[0-9]{0,2})?
+                        type: string
+                    -   type: 'null'
+                    default: null
+                    description: The fixed fee per order
+                    title: Fixed Fee Per Order
+                percentage_fee_per_order:
+                    anyOf:
+                    -   format: decimal
+                        pattern: ^-?[0-9]+(\.[0-9]{0,6})?
+                        type: string
+                    -   type: 'null'
+                    default: null
+                    description: The percentage fee per order
+                    title: Percentage Fee Per Order
+                due_in_days:
+                    anyOf:
+                    -   type: integer
+                    -   type: 'null'
+                    default: null
+                    description: The due in days
+                    title: Due In Days
+                gov_due_in_days:
+                    anyOf:
+                    -   type: integer
+                    -   type: 'null'
+                    default: null
+                    description: The government due in days
+                    title: Gov Due In Days
+                payment_provider_details:
+                    anyOf:
+                    -   $ref: '#/components/schemas/PartnerPPDetailsSchema'
+                    -   type: 'null'
+                    default: null
+                    description: The payment provider details of the merchant
+                bank_statement_email:
+                    anyOf:
+                    -   format: email
+                        type: string
+                    -   type: 'null'
+                    default: null
+                    deprecated: true
+                    description: The bank statement email of the merchant
+                    title: Bank Statement Email
+                bank_statement_email_addresses:
+                    anyOf:
+                    -   items:
+                            format: email
+                            type: string
+                        type: array
+                    -   type: 'null'
+                    default: null
+                    description: The bank statement email addresses of the merchant
+                    title: Bank Statement Email Addresses
+                statement_email_cycle:
+                    anyOf:
+                    -   $ref: '#/components/schemas/PayoutPlanEnum'
+                    -   type: 'null'
+                    default: null
+                    description: The statement email cycle of the merchant
+                partner:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    description: The partner's short name
+                    title: Partner
+                partner_id:
+                    anyOf:
+                    -   format: uuid
+                        type: string
+                    -   type: 'null'
+                    default: null
+                    description: The partner's ID
+                    title: Partner Id
+            required:
+            - national_id
+            - legal_name
+            - email
+            title: CreatePartnerMerchantRequestSchema
+            type: object
+        BankAccountSchema:
+            properties:
+                id:
+                    anyOf:
+                    -   format: uuid
+                        type: string
+                    -   type: 'null'
+                    default: null
+                    title: Id
+                bban:
+                    anyOf:
+                    -   maxLength: 30
+                        minLength: 7
+                        pattern: ^[0-9A-Za-z]*$
+                        type: string
+                    -   type: 'null'
+                    default: null
+                    title: Bban
+                iban:
+                    anyOf:
+                    -   maxLength: 34
+                        minLength: 15
+                        pattern: ^[0-9A-Za-z]*$
+                        type: string
+                    -   type: 'null'
+                    default: null
+                    title: Iban
+                bic:
+                    anyOf:
+                    -   maxLength: 12
+                        minLength: 8
+                        pattern: ^[0-9A-Za-z]*$
+                        type: string
+                    -   type: 'null'
+                    default: null
+                    title: Bic
+                country_code:
+                    anyOf:
+                    -   $ref: '#/components/schemas/CountryCodeEnum'
+                    -   type: 'null'
+                    default: null
+                branch_sort_code:
+                    anyOf:
+                    -   maxLength: 9
+                        pattern: ^[0-9]*$
+                        type: string
+                    -   type: 'null'
+                    default: null
+                    title: Branch Sort Code
+                local_account_number:
+                    anyOf:
+                    -   maxLength: 12
+                        minLength: 8
+                        pattern: ^[0-9]*$
+                        type: string
+                    -   type: 'null'
+                    default: null
+                    title: Local Account Number
+                organization_name:
+                    anyOf:
+                    -   maxLength: 140
+                        minLength: 1
+                        type: string
+                    -   type: 'null'
+                    default: null
+                    title: Organization Name
+                organization_number:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    title: Organization Number
+                description:
+                    anyOf:
+                    -   maxLength: 255
+                        minLength: 1
+                        type: string
+                    -   type: 'null'
+                    default: null
+                    title: Description
+                kid_type:
+                    anyOf:
+                    -   $ref: '#/components/schemas/KidTypeEnum'
+                    -   type: 'null'
+                    default: null
+            title: BankAccountSchema
+            type: object
+        CountryCodeEnum:
+            enum:
+            - AD
+            - AE
+            - AL
+            - AM
+            - AO
+            - AR
+            - AT
+            - AU
+            - AZ
+            - BA
+            - BB
+            - BD
+            - BE
+            - BF
+            - BG
+            - BH
+            - BI
+            - BJ
+            - BN
+            - BO
+            - BR
+            - BS
+            - BW
+            - CA
+            - CG
+            - CH
+            - CL
+            - CM
+            - CO
+            - CR
+            - CY
+            - CZ
+            - DE
+            - DJ
+            - DK
+            - DO
+            - DZ
+            - EC
+            - EE
+            - EG
+            - ES
+            - ET
+            - FI
+            - FJ
+            - FR
+            - GA
+            - GB
+            - GE
+            - GH
+            - GN
+            - GQ
+            - GR
+            - GT
+            - GY
+            - HN
+            - HR
+            - HT
+            - HU
+            - ID
+            - IE
+            - IL
+            - IN
+            - IQ
+            - IS
+            - IT
+            - JM
+            - JO
+            - JP
+            - KE
+            - KG
+            - KH
+            - KR
+            - KW
+            - KZ
+            - LA
+            - LB
+            - LI
+            - LK
+            - LT
+            - LU
+            - LV
+            - LR
+            - MA
+            - MC
+            - MD
+            - ME
+            - MG
+            - MK
+            - MN
+            - MR
+            - MT
+            - MU
+            - MV
+            - MW
+            - MX
+            - MY
+            - MZ
+            - NA
+            - NE
+            - NG
+            - NL
+            - 'NO'
+            - NP
+            - NZ
+            - OM
+            - PA
+            - PE
+            - PG
+            - PH
+            - PK
+            - PL
+            - PT
+            - PY
+            - QA
+            - RO
+            - RS
+            - RW
+            - SA
+            - SE
+            - SG
+            - SI
+            - SK
+            - SL
+            - SN
+            - SR
+            - SV
+            - SZ
+            - TD
+            - TG
+            - TH
+            - TJ
+            - TM
+            - TN
+            - TR
+            - TT
+            - TZ
+            - UA
+            - UG
+            - US
+            - UY
+            - UZ
+            - VN
+            - ZA
+            - ZM
+            title: CountryCodeEnum
+            type: string
+        CurrencyEnum:
+            enum:
+            - CHF
+            - CZK
+            - DKK
+            - EUR
+            - GBP
+            - INR
+            - MXN
+            - NOK
+            - PLN
+            - RON
+            - SEK
+            - USD
+            title: CurrencyEnum
+            type: string
+        ExternalEcommerceConfigSchema:
+            properties:
+                provider_id:
+                    $ref: '#/components/schemas/ProviderIdEnum'
+                invoice_type:
+                    $ref: '#/components/schemas/InvoiceTypeEnum'
+                region:
+                    $ref: '#/components/schemas/CountryCodeEnum'
+                payout_plan:
+                    anyOf:
+                    -   $ref: '#/components/schemas/PayoutPlanEnum'
+                    -   type: 'null'
+                    default: null
+                recourse:
+                    anyOf:
+                    -   type: boolean
+                    -   type: 'null'
+                    default: false
+                    title: Recourse
+                is_active:
+                    anyOf:
+                    -   type: boolean
+                    -   type: 'null'
+                    default: null
+                    title: Is Active
+                buyer_language:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    title: Buyer Language
+                external_merchant_id:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    title: External Merchant Id
+            required:
+            - provider_id
+            - invoice_type
+            - region
+            title: ExternalEcommerceConfigSchema
+            type: object
+        InvoiceTypeEnum:
+            description: Enumeration for invoice type.
+            enum:
+            - FUNDED_INVOICE
+            - DIRECT_INVOICE
+            - CARD
+            title: InvoiceTypeEnum
+            type: string
+        KidTypeEnum:
+            enum:
+            - MOD_10
+            - MOD_11
+            - NONE
+            title: KidTypeEnum
+            type: string
+        PartnerPPDetailsSchema:
+            properties:
+                ecommerce_config:
+                    anyOf:
+                    -   $ref: '#/components/schemas/ExternalEcommerceConfigSchema'
+                    -   type: 'null'
+                    default: null
+                bank_account:
+                    $ref: '#/components/schemas/BankAccountSchema'
+            required:
+            - bank_account
+            title: PartnerPPDetailsSchema
+            type: object
+        PayoutPlanEnum:
+            enum:
+            - DAILY
+            - WEEKLY
+            - BI_MONTHLY
+            - MONTHLY
+            title: PayoutPlanEnum
+            type: string
+        ProviderIdEnum:
+            enum:
+            - TILLIT
+            - VIOLA
+            - APRILA
+            - MERCHANT
+            - KREDINOR
+            - ABN_AMRO
+            - KOMPLETT
+            - SANTANDER
+            - AVIDA
+            - TILLIT_CARD
+            title: ProviderIdEnum
+            type: string
+        CreatePartnerMerchantResponseSchema:
+            examples:
+            -   account_enabled: true
+                account_executive: null
+                address_city: OSLO
+                address_country_code: 'NO'
+                address_lines: Testplass 1
+                address_postal_code: '1111'
+                buyer_fallback_enabled: false
+                country_code: 'NO'
+                display_email: null
+                display_name: Two AS
+                display_phone_number: null
+                due_in_days: null
+                email: test@two.inc
+                email_erp: erp@two.inc
+                email_invoice: invoice@two.inc
+                fee_currency: NOK
+                fixed_fee_per_order: '0.00'
+                id: 3d26e5b2-3ee6-466f-96b3-5591500eb4fb
+                lead_type: null
+                legal_name: Two AS
+                logo_path: https://test.com/test.png
+                merchant_initiated_enabled: false
+                national_id: '925976105'
+                onboarding_events: null
+                partner: two
+                payee_accounts:
+                -   bank_account:
+                        bban: '11111111111'
+                        bic: DNBANOKK
+                        branch_sort_code: null
+                        country_code: 'NO'
+                        description: Bank Account Test
+                        iban: NO9311111111111
+                        id: null
+                        kid_type: null
+                        local_account_number: null
+                        organization_name: Two AS
+                        organization_number: '925976105'
+                    external_app_id: ''
+                    external_merchant_id: ''
+                    external_ref_url: ''
+                    external_status: null
+                    id: null
+                    invoice_type: FUNDED_INVOICE
+                    payout_plan: DAILY
+                    provider_id: APRILA
+                    recourse: false
+                    region: 'NO'
+                -   bank_account:
+                        bban: '11111111111'
+                        bic: DNBANOKK
+                        branch_sort_code: null
+                        country_code: 'NO'
+                        description: Bank Account Test
+                        iban: NO9311111111111
+                        id: null
+                        kid_type: null
+                        local_account_number: null
+                        organization_name: Two AS
+                        organization_number: '925976105'
+                    external_app_id: ''
+                    external_merchant_id: ''
+                    external_ref_url: ''
+                    external_status: null
+                    id: null
+                    invoice_type: DIRECT_INVOICE
+                    payout_plan: MONTHLY
+                    provider_id: MERCHANT
+                    recourse: false
+                    region: 'NO'
+                payment_provider_details: null
+                percentage_fee_per_order: '2.000000'
+                phone: '+4712345678'
+                phone_invoice: '+4712345670'
+                platform_type: null
+                product_type: null
+                sales_development_rep: null
+                short_name: testshortname
+                vat_number: null
+                vat_registered: false
+                web_developer: null
+                website: https://two.inc
+            -   account_enabled: true
+                account_executive: null
+                address_city: OSLO
+                address_country_code: 'NO'
+                address_lines: Testplass 1
+                address_postal_code: '1111'
+                buyer_fallback_enabled: false
+                country_code: 'NO'
+                display_email: null
+                display_name: Two AS
+                display_phone_number: null
+                due_in_days: null
+                email: test@two.inc
+                email_erp: erp@two.inc
+                email_invoice: invoice@two.inc
+                fee_currency: NOK
+                fixed_fee_per_order: '0.00'
+                id: 3d26e5b2-3ee6-466f-96b3-5591500eb4fb
+                lead_type: null
+                legal_name: Two AS
+                logo_path: https://test.com/test.png
+                merchant_initiated_enabled: false
+                national_id: '925976105'
+                onboarding_events: null
+                partner: two
+                payee_accounts:
+                -   bank_account:
+                        bban: '11111111111'
+                        bic: DNBANOKK
+                        branch_sort_code: null
+                        country_code: 'NO'
+                        description: Bank Account Test
+                        iban: NO9311111111111
+                        id: null
+                        kid_type: null
+                        local_account_number: null
+                        organization_name: Two AS
+                        organization_number: '925976105'
+                    external_app_id: ''
+                    external_merchant_id: ''
+                    external_ref_url: ''
+                    external_status: null
+                    id: null
+                    invoice_type: FUNDED_INVOICE
+                    payout_plan: DAILY
+                    provider_id: APRILA
+                    recourse: false
+                    region: 'NO'
+                -   bank_account:
+                        bban: '11111111111'
+                        bic: DNBANOKK
+                        branch_sort_code: null
+                        country_code: 'NO'
+                        description: Bank Account Test
+                        iban: NO9311111111111
+                        id: null
+                        kid_type: null
+                        local_account_number: null
+                        organization_name: Two AS
+                        organization_number: '925976105'
+                    external_app_id: ''
+                    external_merchant_id: ''
+                    external_ref_url: ''
+                    external_status: null
+                    id: null
+                    invoice_type: DIRECT_INVOICE
+                    payout_plan: MONTHLY
+                    provider_id: MERCHANT
+                    recourse: false
+                    region: 'NO'
+                payment_provider_details: null
+                percentage_fee_per_order: '2.000000'
+                phone: '+4712345678'
+                phone_invoice: '+4712345670'
+                platform_type: null
+                product_type: null
+                sales_development_rep: null
+                short_name: testshortname
+                vat_number: null
+                vat_registered: false
+                web_developer: null
+                website: https://two.inc
+            properties:
+                id:
+                    anyOf:
+                    -   format: uuid
+                        type: string
+                    -   type: 'null'
+                    default: null
+                    description: Unique identifier of the merchant
+                    title: Id
+                date_updated:
+                    description: Date the merchant was last updated (UTC)
+                    format: date-time
+                    title: Date Updated
+                    type: string
+                date_created:
+                    description: Date the merchant was created (UTC)
+                    format: date-time
+                    title: Date Created
+                    type: string
+                short_name:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    description: Short name of the merchant
+                    title: Short Name
+                logo_path:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    description: 'The logo URL, valid extensions are: .png, .svg'
+                    title: Logo Path
+                vat_number:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    description: VAT number of the merchant
+                    title: Vat Number
+                vat_registered:
+                    default: false
+                    description: Whether the merchant is VAT registered
+                    title: Vat Registered
+                    type: boolean
+                country_code:
+                    $ref: '#/components/schemas/CountryCodeEnum'
+                    description: Country code of the merchant
+                national_id:
+                    description: National ID of the merchant
+                    title: National Id
+                    type: string
+                legal_name:
+                    description: Legal name of the merchant
+                    title: Legal Name
+                    type: string
+                display_name:
+                    description: Display name of the merchant
+                    title: Display Name
+                    type: string
+                display_phone_number:
+                    anyOf:
+                    -   type: boolean
+                    -   type: 'null'
+                    default: null
+                    description: Whether to display the phone number on the invoice
+                    title: Display Phone Number
+                display_email:
+                    anyOf:
+                    -   type: boolean
+                    -   type: 'null'
+                    default: null
+                    description: Whether to display the email on the invoice
+                    title: Display Email
+                website:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    description: Website of the merchant
+                    title: Website
+                email:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    description: Merchant's email address
+                    title: Email
+                email_invoice:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    description: Email address for invoices
+                    title: Email Invoice
+                email_erp:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    description: Email address of the ERP system
+                    title: Email Erp
+                phone:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    description: Merchant's phone number
+                    title: Phone
+                phone_invoice:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    description: Phone number for invoices
+                    title: Phone Invoice
+                address_lines:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    description: Address lines of the merchant, separated by commas
+                    title: Address Lines
+                address_city:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    description: City of the merchant
+                    title: Address City
+                address_postal_code:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    description: Postal code of the merchant
+                    title: Address Postal Code
+                address_country_code:
+                    anyOf:
+                    -   $ref: '#/components/schemas/CountryCodeEnum'
+                    -   type: 'null'
+                    default: null
+                    description: Country code of the merchant
+                fee_currency:
+                    $ref: '#/components/schemas/CurrencyEnum'
+                    description: Currency of the fees
+                fixed_fee_per_order:
+                    description: Fixed fee per order
+                    format: decimal
+                    pattern: ^-?[0-9]+(\.[0-9]{0,2})?
+                    title: Fixed Fee Per Order
+                    type: string
+                percentage_fee_per_order:
+                    description: Percentage fee per order
+                    format: decimal
+                    pattern: ^-?[0-9]+(\.[0-9]{0,6})?
+                    title: Percentage Fee Per Order
+                    type: string
+                due_in_days:
+                    anyOf:
+                    -   type: integer
+                    -   type: 'null'
+                    default: null
+                    description: Invoice due in days
+                    title: Due In Days
+                gov_due_in_days:
+                    anyOf:
+                    -   type: integer
+                    -   type: 'null'
+                    default: null
+                    description: Government invoice due in days
+                    title: Gov Due In Days
+                bank_statement_email:
+                    anyOf:
+                    -   format: email
+                        type: string
+                    -   type: 'null'
+                    default: null
+                    deprecated: true
+                    description: Bank statement email address
+                    title: Bank Statement Email
+                bank_statement_email_addresses:
+                    anyOf:
+                    -   items:
+                            format: email
+                            type: string
+                        type: array
+                    -   type: 'null'
+                    default: null
+                    description: Bank statement email addresses
+                    title: Bank Statement Email Addresses
+                statement_email_cycle:
+                    anyOf:
+                    -   $ref: '#/components/schemas/PayoutPlanEnum'
+                    -   type: 'null'
+                    default: null
+                    description: Statement email cycle
+                account_enabled:
+                    anyOf:
+                    -   type: boolean
+                    -   type: 'null'
+                    default: null
+                    description: Whether the account is enabled
+                    title: Account Enabled
+                bank_statement_email_is_enabled:
+                    anyOf:
+                    -   type: boolean
+                    -   type: 'null'
+                    default: null
+                    description: Whether the bank statement email is enabled
+                    title: Bank Statement Email Is Enabled
+                buyer_fallback_enabled:
+                    anyOf:
+                    -   type: boolean
+                    -   type: 'null'
+                    default: null
+                    description: Whether the buyer fallback is enabled
+                    title: Buyer Fallback Enabled
+                sole_trader_fallback:
+                    anyOf:
+                    -   type: boolean
+                    -   type: 'null'
+                    default: null
+                    description: Whether the sole trader fallback is enabled
+                    title: Sole Trader Fallback
+                buyer_credit_limit_enabled:
+                    anyOf:
+                    -   type: boolean
+                    -   type: 'null'
+                    default: null
+                    description: Whether the buyer credit limit is enabled
+                    title: Buyer Credit Limit Enabled
+                merchant_initiated_enabled:
+                    anyOf:
+                    -   type: boolean
+                    -   type: 'null'
+                    default: null
+                    description: Whether the merchant initiated is enabled
+                    title: Merchant Initiated Enabled
+                in_store_orders_enabled:
+                    anyOf:
+                    -   type: boolean
+                    -   type: 'null'
+                    default: null
+                    description: Whether the in store orders are enabled
+                    title: In Store Orders Enabled
+                api_key_management_enabled:
+                    anyOf:
+                    -   type: boolean
+                    -   type: 'null'
+                    default: null
+                    description: Whether the API key management is enabled
+                    title: Api Key Management Enabled
+                partner:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    description: Partner merchant's short name
+                    title: Partner
+                partner_id:
+                    anyOf:
+                    -   format: uuid
+                        type: string
+                    -   type: 'null'
+                    default: null
+                    description: Partner merchant's ID
+                    title: Partner Id
+                payee_accounts:
+                    anyOf:
+                    -   items:
+                            $ref: '#/components/schemas/PayeeAccountSchema'
+                        type: array
+                    -   type: 'null'
+                    default: null
+                    description: Payee accounts of the merchant
+                    title: Payee Accounts
+                payment_provider_details:
+                    anyOf:
+                    -   $ref: '#/components/schemas/PaymentProviderDetailsSchema'
+                    -   type: 'null'
+                    default: null
+                    description: Payment provider details of the merchant
+                secret_api_key:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    deprecated: true
+                    description: Deprecated. Use X-Merchant-Id header along with X-Api-Key
+                        for the partner merchant account instead.
+                    title: Secret Api Key
+            required:
+            - date_updated
+            - date_created
+            - country_code
+            - national_id
+            - legal_name
+            - display_name
+            - fee_currency
+            - fixed_fee_per_order
+            - percentage_fee_per_order
+            title: CreatePartnerMerchantResponseSchema
+            type: object
+        PayeeAccountSchema:
+            properties:
+                id:
+                    anyOf:
+                    -   format: uuid
+                        type: string
+                    -   type: 'null'
+                    default: null
+                    title: Id
+                provider_id:
+                    title: Provider Id
+                    type: string
+                region:
+                    title: Region
+                    type: string
+                invoice_type:
+                    $ref: '#/components/schemas/InvoiceTypeEnum'
+                external_merchant_id:
+                    title: External Merchant Id
+                    type: string
+                external_app_id:
+                    title: External App Id
+                    type: string
+                external_ref_url:
+                    title: External Ref Url
+                    type: string
+                payout_plan:
+                    anyOf:
+                    -   $ref: '#/components/schemas/PayoutPlanEnum'
+                    -   type: 'null'
+                    default: null
+                recourse:
+                    title: Recourse
+                    type: boolean
+                external_status:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    title: External Status
+                bank_account:
+                    anyOf:
+                    -   $ref: '#/components/schemas/BankAccountSchema'
+                    -   type: 'null'
+                    default: null
+                is_active:
+                    anyOf:
+                    -   type: boolean
+                    -   type: 'null'
+                    default: null
+                    title: Is Active
+                buyer_language:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    title: Buyer Language
+            required:
+            - provider_id
+            - region
+            - invoice_type
+            - external_merchant_id
+            - external_app_id
+            - external_ref_url
+            - recourse
+            title: PayeeAccountSchema
+            type: object
+        PaymentProviderDetailsSchema:
+            properties:
+                ecommerce_config:
+                    $ref: '#/components/schemas/ExternalEcommerceConfigSchema'
+                bank_account:
+                    anyOf:
+                    -   $ref: '#/components/schemas/BankAccountSchema'
+                    -   type: 'null'
+                    default: null
+            required:
+            - ecommerce_config
+            title: PaymentProviderDetailsSchema
+            type: object
+        MerchantResponseSchema:
+            examples:
+            -   account_enabled: true
+                account_executive: null
+                address_city: OSLO
+                address_country_code: 'NO'
+                address_lines: Testplass 1
+                address_postal_code: '1111'
+                buyer_fallback_enabled: false
+                country_code: 'NO'
+                display_email: null
+                display_name: Two AS
+                display_phone_number: null
+                due_in_days: null
+                email: test@two.inc
+                email_erp: erp@two.inc
+                email_invoice: invoice@two.inc
+                fee_currency: NOK
+                fixed_fee_per_order: '0.00'
+                id: 3d26e5b2-3ee6-466f-96b3-5591500eb4fb
+                lead_type: null
+                legal_name: Two AS
+                logo_path: https://test.com/test.png
+                merchant_initiated_enabled: false
+                national_id: '925976105'
+                onboarding_events: null
+                partner: two
+                payee_accounts:
+                -   bank_account:
+                        bban: '11111111111'
+                        bic: DNBANOKK
+                        branch_sort_code: null
+                        country_code: 'NO'
+                        description: Bank Account Test
+                        iban: NO9311111111111
+                        id: null
+                        kid_type: null
+                        local_account_number: null
+                        organization_name: Two AS
+                        organization_number: '925976105'
+                    external_app_id: ''
+                    external_merchant_id: ''
+                    external_ref_url: ''
+                    external_status: null
+                    id: null
+                    invoice_type: FUNDED_INVOICE
+                    payout_plan: DAILY
+                    provider_id: APRILA
+                    recourse: false
+                    region: 'NO'
+                -   bank_account:
+                        bban: '11111111111'
+                        bic: DNBANOKK
+                        branch_sort_code: null
+                        country_code: 'NO'
+                        description: Bank Account Test
+                        iban: NO9311111111111
+                        id: null
+                        kid_type: null
+                        local_account_number: null
+                        organization_name: Two AS
+                        organization_number: '925976105'
+                    external_app_id: ''
+                    external_merchant_id: ''
+                    external_ref_url: ''
+                    external_status: null
+                    id: null
+                    invoice_type: DIRECT_INVOICE
+                    payout_plan: MONTHLY
+                    provider_id: MERCHANT
+                    recourse: false
+                    region: 'NO'
+                payment_provider_details: null
+                percentage_fee_per_order: '2.000000'
+                phone: '+4712345678'
+                phone_invoice: '+4712345670'
+                platform_type: null
+                product_type: null
+                sales_development_rep: null
+                short_name: testshortname
+                vat_number: null
+                vat_registered: false
+                web_developer: null
+                website: https://two.inc
+            -   account_enabled: true
+                account_executive: null
+                address_city: OSLO
+                address_country_code: 'NO'
+                address_lines: Testplass 1
+                address_postal_code: '1111'
+                buyer_fallback_enabled: false
+                country_code: 'NO'
+                display_email: null
+                display_name: Two AS
+                display_phone_number: null
+                due_in_days: null
+                email: test@two.inc
+                email_erp: erp@two.inc
+                email_invoice: invoice@two.inc
+                fee_currency: NOK
+                fixed_fee_per_order: '0.00'
+                id: 3d26e5b2-3ee6-466f-96b3-5591500eb4fb
+                lead_type: null
+                legal_name: Two AS
+                logo_path: https://test.com/test.png
+                merchant_initiated_enabled: false
+                national_id: '925976105'
+                onboarding_events: null
+                partner: two
+                payee_accounts:
+                -   bank_account:
+                        bban: '11111111111'
+                        bic: DNBANOKK
+                        branch_sort_code: null
+                        country_code: 'NO'
+                        description: Bank Account Test
+                        iban: NO9311111111111
+                        id: null
+                        kid_type: null
+                        local_account_number: null
+                        organization_name: Two AS
+                        organization_number: '925976105'
+                    external_app_id: ''
+                    external_merchant_id: ''
+                    external_ref_url: ''
+                    external_status: null
+                    id: null
+                    invoice_type: FUNDED_INVOICE
+                    payout_plan: DAILY
+                    provider_id: APRILA
+                    recourse: false
+                    region: 'NO'
+                -   bank_account:
+                        bban: '11111111111'
+                        bic: DNBANOKK
+                        branch_sort_code: null
+                        country_code: 'NO'
+                        description: Bank Account Test
+                        iban: NO9311111111111
+                        id: null
+                        kid_type: null
+                        local_account_number: null
+                        organization_name: Two AS
+                        organization_number: '925976105'
+                    external_app_id: ''
+                    external_merchant_id: ''
+                    external_ref_url: ''
+                    external_status: null
+                    id: null
+                    invoice_type: DIRECT_INVOICE
+                    payout_plan: MONTHLY
+                    provider_id: MERCHANT
+                    recourse: false
+                    region: 'NO'
+                payment_provider_details: null
+                percentage_fee_per_order: '2.000000'
+                phone: '+4712345678'
+                phone_invoice: '+4712345670'
+                platform_type: null
+                product_type: null
+                sales_development_rep: null
+                short_name: testshortname
+                vat_number: null
+                vat_registered: false
+                web_developer: null
+                website: https://two.inc
+            properties:
+                id:
+                    anyOf:
+                    -   format: uuid
+                        type: string
+                    -   type: 'null'
+                    default: null
+                    description: Unique identifier of the merchant
+                    title: Id
+                date_updated:
+                    description: Date the merchant was last updated (UTC)
+                    format: date-time
+                    title: Date Updated
+                    type: string
+                date_created:
+                    description: Date the merchant was created (UTC)
+                    format: date-time
+                    title: Date Created
+                    type: string
+                short_name:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    description: Short name of the merchant
+                    title: Short Name
+                logo_path:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    description: 'The logo URL, valid extensions are: .png, .svg'
+                    title: Logo Path
+                vat_number:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    description: VAT number of the merchant
+                    title: Vat Number
+                vat_registered:
+                    default: false
+                    description: Whether the merchant is VAT registered
+                    title: Vat Registered
+                    type: boolean
+                country_code:
+                    $ref: '#/components/schemas/CountryCodeEnum'
+                    description: Country code of the merchant
+                national_id:
+                    description: National ID of the merchant
+                    title: National Id
+                    type: string
+                legal_name:
+                    description: Legal name of the merchant
+                    title: Legal Name
+                    type: string
+                display_name:
+                    description: Display name of the merchant
+                    title: Display Name
+                    type: string
+                display_phone_number:
+                    anyOf:
+                    -   type: boolean
+                    -   type: 'null'
+                    default: null
+                    description: Whether to display the phone number on the invoice
+                    title: Display Phone Number
+                display_email:
+                    anyOf:
+                    -   type: boolean
+                    -   type: 'null'
+                    default: null
+                    description: Whether to display the email on the invoice
+                    title: Display Email
+                website:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    description: Website of the merchant
+                    title: Website
+                email:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    description: Merchant's email address
+                    title: Email
+                email_invoice:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    description: Email address for invoices
+                    title: Email Invoice
+                email_erp:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    description: Email address of the ERP system
+                    title: Email Erp
+                phone:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    description: Merchant's phone number
+                    title: Phone
+                phone_invoice:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    description: Phone number for invoices
+                    title: Phone Invoice
+                address_lines:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    description: Address lines of the merchant, separated by commas
+                    title: Address Lines
+                address_city:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    description: City of the merchant
+                    title: Address City
+                address_postal_code:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    description: Postal code of the merchant
+                    title: Address Postal Code
+                address_country_code:
+                    anyOf:
+                    -   $ref: '#/components/schemas/CountryCodeEnum'
+                    -   type: 'null'
+                    default: null
+                    description: Country code of the merchant
+                fee_currency:
+                    $ref: '#/components/schemas/CurrencyEnum'
+                    description: Currency of the fees
+                fixed_fee_per_order:
+                    description: Fixed fee per order
+                    format: decimal
+                    pattern: ^-?[0-9]+(\.[0-9]{0,2})?
+                    title: Fixed Fee Per Order
+                    type: string
+                percentage_fee_per_order:
+                    description: Percentage fee per order
+                    format: decimal
+                    pattern: ^-?[0-9]+(\.[0-9]{0,6})?
+                    title: Percentage Fee Per Order
+                    type: string
+                due_in_days:
+                    anyOf:
+                    -   type: integer
+                    -   type: 'null'
+                    default: null
+                    description: Invoice due in days
+                    title: Due In Days
+                gov_due_in_days:
+                    anyOf:
+                    -   type: integer
+                    -   type: 'null'
+                    default: null
+                    description: Government invoice due in days
+                    title: Gov Due In Days
+                bank_statement_email:
+                    anyOf:
+                    -   format: email
+                        type: string
+                    -   type: 'null'
+                    default: null
+                    deprecated: true
+                    description: Bank statement email address
+                    title: Bank Statement Email
+                bank_statement_email_addresses:
+                    anyOf:
+                    -   items:
+                            format: email
+                            type: string
+                        type: array
+                    -   type: 'null'
+                    default: null
+                    description: Bank statement email addresses
+                    title: Bank Statement Email Addresses
+                statement_email_cycle:
+                    anyOf:
+                    -   $ref: '#/components/schemas/PayoutPlanEnum'
+                    -   type: 'null'
+                    default: null
+                    description: Statement email cycle
+                account_enabled:
+                    anyOf:
+                    -   type: boolean
+                    -   type: 'null'
+                    default: null
+                    description: Whether the account is enabled
+                    title: Account Enabled
+                bank_statement_email_is_enabled:
+                    anyOf:
+                    -   type: boolean
+                    -   type: 'null'
+                    default: null
+                    description: Whether the bank statement email is enabled
+                    title: Bank Statement Email Is Enabled
+                buyer_fallback_enabled:
+                    anyOf:
+                    -   type: boolean
+                    -   type: 'null'
+                    default: null
+                    description: Whether the buyer fallback is enabled
+                    title: Buyer Fallback Enabled
+                sole_trader_fallback:
+                    anyOf:
+                    -   type: boolean
+                    -   type: 'null'
+                    default: null
+                    description: Whether the sole trader fallback is enabled
+                    title: Sole Trader Fallback
+                buyer_credit_limit_enabled:
+                    anyOf:
+                    -   type: boolean
+                    -   type: 'null'
+                    default: null
+                    description: Whether the buyer credit limit is enabled
+                    title: Buyer Credit Limit Enabled
+                merchant_initiated_enabled:
+                    anyOf:
+                    -   type: boolean
+                    -   type: 'null'
+                    default: null
+                    description: Whether the merchant initiated is enabled
+                    title: Merchant Initiated Enabled
+                in_store_orders_enabled:
+                    anyOf:
+                    -   type: boolean
+                    -   type: 'null'
+                    default: null
+                    description: Whether the in store orders are enabled
+                    title: In Store Orders Enabled
+                api_key_management_enabled:
+                    anyOf:
+                    -   type: boolean
+                    -   type: 'null'
+                    default: null
+                    description: Whether the API key management is enabled
+                    title: Api Key Management Enabled
+                partner:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    description: Partner merchant's short name
+                    title: Partner
+                partner_id:
+                    anyOf:
+                    -   format: uuid
+                        type: string
+                    -   type: 'null'
+                    default: null
+                    description: Partner merchant's ID
+                    title: Partner Id
+                payee_accounts:
+                    anyOf:
+                    -   items:
+                            $ref: '#/components/schemas/PayeeAccountSchema'
+                        type: array
+                    -   type: 'null'
+                    default: null
+                    description: Payee accounts of the merchant
+                    title: Payee Accounts
+                payment_provider_details:
+                    anyOf:
+                    -   $ref: '#/components/schemas/PaymentProviderDetailsSchema'
+                    -   type: 'null'
+                    default: null
+                    description: Payment provider details of the merchant
+            required:
+            - date_updated
+            - date_created
+            - country_code
+            - national_id
+            - legal_name
+            - display_name
+            - fee_currency
+            - fixed_fee_per_order
+            - percentage_fee_per_order
+            title: MerchantResponseSchema
+            type: object
+        MerchantResponseListSchema:
+            examples:
+            -   -   account_enabled: true
+                    account_executive: null
+                    address_city: OSLO
+                    address_country_code: 'NO'
+                    address_lines: Testplass 1
+                    address_postal_code: '1111'
+                    buyer_fallback_enabled: false
+                    country_code: 'NO'
+                    display_email: null
+                    display_name: Two AS
+                    display_phone_number: null
+                    due_in_days: null
+                    email: test@two.inc
+                    email_erp: erp@two.inc
+                    email_invoice: invoice@two.inc
+                    fee_currency: NOK
+                    fixed_fee_per_order: '0.00'
+                    id: 3d26e5b2-3ee6-466f-96b3-5591500eb4fb
+                    lead_type: null
+                    legal_name: Two AS
+                    logo_path: https://test.com/test.png
+                    merchant_initiated_enabled: false
+                    national_id: '925976105'
+                    onboarding_events: null
+                    partner: two
+                    payee_accounts:
+                    -   bank_account:
+                            bban: '11111111111'
+                            bic: DNBANOKK
+                            branch_sort_code: null
+                            country_code: 'NO'
+                            description: Bank Account Test
+                            iban: NO9311111111111
+                            id: null
+                            kid_type: null
+                            local_account_number: null
+                            organization_name: Two AS
+                            organization_number: '925976105'
+                        external_app_id: ''
+                        external_merchant_id: ''
+                        external_ref_url: ''
+                        external_status: null
+                        id: null
+                        invoice_type: FUNDED_INVOICE
+                        payout_plan: DAILY
+                        provider_id: APRILA
+                        recourse: false
+                        region: 'NO'
+                    -   bank_account:
+                            bban: '11111111111'
+                            bic: DNBANOKK
+                            branch_sort_code: null
+                            country_code: 'NO'
+                            description: Bank Account Test
+                            iban: NO9311111111111
+                            id: null
+                            kid_type: null
+                            local_account_number: null
+                            organization_name: Two AS
+                            organization_number: '925976105'
+                        external_app_id: ''
+                        external_merchant_id: ''
+                        external_ref_url: ''
+                        external_status: null
+                        id: null
+                        invoice_type: DIRECT_INVOICE
+                        payout_plan: MONTHLY
+                        provider_id: MERCHANT
+                        recourse: false
+                        region: 'NO'
+                    payment_provider_details: null
+                    percentage_fee_per_order: '2.000000'
+                    phone: '+4712345678'
+                    phone_invoice: '+4712345670'
+                    platform_type: null
+                    product_type: null
+                    sales_development_rep: null
+                    short_name: testshortname
+                    vat_number: null
+                    vat_registered: false
+                    web_developer: null
+                    website: https://two.inc
+                -   account_enabled: true
+                    account_executive: null
+                    address_city: OSLO
+                    address_country_code: 'NO'
+                    address_lines: Testplass 1
+                    address_postal_code: '1111'
+                    buyer_fallback_enabled: false
+                    country_code: 'NO'
+                    display_email: null
+                    display_name: Two AS
+                    display_phone_number: null
+                    due_in_days: null
+                    email: test@two.inc
+                    email_erp: erp@two.inc
+                    email_invoice: invoice@two.inc
+                    fee_currency: NOK
+                    fixed_fee_per_order: '0.00'
+                    id: 3d26e5b2-3ee6-466f-96b3-5591500eb4fb
+                    lead_type: null
+                    legal_name: Two AS
+                    logo_path: https://test.com/test.png
+                    merchant_initiated_enabled: false
+                    national_id: '925976105'
+                    onboarding_events: null
+                    partner: two
+                    payee_accounts:
+                    -   bank_account:
+                            bban: '11111111111'
+                            bic: DNBANOKK
+                            branch_sort_code: null
+                            country_code: 'NO'
+                            description: Bank Account Test
+                            iban: NO9311111111111
+                            id: null
+                            kid_type: null
+                            local_account_number: null
+                            organization_name: Two AS
+                            organization_number: '925976105'
+                        external_app_id: ''
+                        external_merchant_id: ''
+                        external_ref_url: ''
+                        external_status: null
+                        id: null
+                        invoice_type: FUNDED_INVOICE
+                        payout_plan: DAILY
+                        provider_id: APRILA
+                        recourse: false
+                        region: 'NO'
+                    -   bank_account:
+                            bban: '11111111111'
+                            bic: DNBANOKK
+                            branch_sort_code: null
+                            country_code: 'NO'
+                            description: Bank Account Test
+                            iban: NO9311111111111
+                            id: null
+                            kid_type: null
+                            local_account_number: null
+                            organization_name: Two AS
+                            organization_number: '925976105'
+                        external_app_id: ''
+                        external_merchant_id: ''
+                        external_ref_url: ''
+                        external_status: null
+                        id: null
+                        invoice_type: DIRECT_INVOICE
+                        payout_plan: MONTHLY
+                        provider_id: MERCHANT
+                        recourse: false
+                        region: 'NO'
+                    payment_provider_details: null
+                    percentage_fee_per_order: '2.000000'
+                    phone: '+4712345678'
+                    phone_invoice: '+4712345670'
+                    platform_type: null
+                    product_type: null
+                    sales_development_rep: null
+                    short_name: testshortname
+                    vat_number: null
+                    vat_registered: false
+                    web_developer: null
+                    website: https://two.inc
+            properties:
+                root:
+                    description: List of merchants
+                    items:
+                        $ref: '#/components/schemas/MerchantResponseSchema'
+                    title: Root
+                    type: array
+            required:
+            - root
+            title: MerchantResponseListSchema
+            type: object
+        UpdatePartnerMerchantSchema:
+            examples:
+            -   address_city: London
+                address_country_code: GB
+                address_lines: Test Square
+                address_postal_code: AED 12A
+                email: test@two.inc
+                email_erp: erp@two.inc
+                email_invoice: invoice@two.inc
+                legal_name: Two B2B LIMITED
+                national_id: '925976105'
+                payment_provider_details:
+                    bank_account:
+                        branch_sort_code: 04-00-11
+                        country_code: GB
+                        description: Bank Account Test
+                        local_account_number: '31126819'
+                phone: '12345678'
+                phone_invoice: '12345670'
+                website: https://two.inc
+            -   address_city: Oslo
+                address_country_code: 'NO'
+                address_lines: Test plass
+                address_postal_code: '1111'
+                email: test@two.inc
+                email_erp: erp@two.inc
+                email_invoice: invoice@two.inc
+                legal_name: Two AS
+                national_id: '13078389'
+                payment_provider_details:
+                    bank_account:
+                        bban: '11111111111'
+                        bic: DNBANOKK
+                        country_code: 'NO'
+                        description: Bank Account Test
+                        iban: NO9311111111111
+                phone: '12345678'
+                phone_invoice: '12345670'
+                website: https://two.inc
+            properties:
+                display_name:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    title: Display Name
+                website:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    title: Website
+                email:
+                    anyOf:
+                    -   format: email
+                        type: string
+                    -   type: 'null'
+                    default: null
+                    title: Email
+                email_invoice:
+                    anyOf:
+                    -   format: email
+                        type: string
+                    -   type: 'null'
+                    default: null
+                    title: Email Invoice
+                email_erp:
+                    anyOf:
+                    -   format: email
+                        type: string
+                    -   type: 'null'
+                    default: null
+                    title: Email Erp
+                phone:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    title: Phone
+                phone_invoice:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    title: Phone Invoice
+                address_lines:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    title: Address Lines
+                address_city:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    title: Address City
+                address_postal_code:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    title: Address Postal Code
+                address_country_code:
+                    anyOf:
+                    -   $ref: '#/components/schemas/CountryCodeEnum'
+                    -   type: 'null'
+                    default: null
+                payment_provider_details:
+                    anyOf:
+                    -   $ref: '#/components/schemas/PartnerPPDetailsSchema'
+                    -   type: 'null'
+                    default: null
+                logo_path:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    description: 'The logo URL, valid extensions are: .png, .svg'
+                    title: Logo Path
+            title: UpdatePartnerMerchantSchema
+            type: object
+        IbanAccounts:
+            description: Default base class for future expansion
+            properties: {}
+            title: IbanAccounts
+            type: object
+        CreatePartnerMerchantRequestSchemaV2:
+            examples:
+            -   address_city: London
+                address_country_code: GB
+                address_lines: Test Square
+                address_postal_code: AED 12A
+                country_code: GB
+                email: test@two.inc
+                email_erp: erp@two.inc
+                email_invoice: invoice@two.inc
+                fixed_fee_per_order: '0.0'
+                legal_name: Two B2B LIMITED
+                logo_path: https://test.com/test.png
+                national_id: '13078389'
+                payment_provider_details:
+                    bank_account:
+                        branch_sort_code: 04-00-11
+                        country_code: GB
+                        description: Bank Account Test
+                        local_account_number: '31126819'
+                percentage_fee_per_order: '2.0'
+                phone: '12345678'
+                phone_invoice: '12345670'
+                short_name: testshortname
+                website: https://two.inc
+            -   address_city: OSLO
+                address_country_code: 'NO'
+                address_lines: Testplass 1
+                address_postal_code: '1111'
+                country_code: 'NO'
+                email: test@two.inc
+                email_erp: erp@two.inc
+                email_invoice: invoice@two.inc
+                fixed_fee_per_order: '0.0'
+                legal_name: Two AS
+                logo_path: https://test.com/test.png
+                national_id: '925976105'
+                payment_provider_details:
+                    bank_account:
+                        bban: '11111111111'
+                        bic: DNBANOKK
+                        country_code: 'NO'
+                        description: Bank Account Test
+                        iban: NO9311111111111
+                percentage_fee_per_order: '2.0'
+                phone: '12345678'
+                phone_invoice: '12345670'
+                short_name: testshortname
+                website: https://two.inc
+            properties:
+                logo_path:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    description: 'The logo URL, valid extensions are: .png, .svg'
+                    title: Logo Path
+                vat_number:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    description: The VAT number of the merchant
+                    title: Vat Number
+                country_code:
+                    $ref: '#/components/schemas/CountryCodeEnum'
+                    description: Country code of the merchant company
+                national_id:
+                    description: National Identifier of the merchant company
+                    title: National Id
+                    type: string
+                legal_name:
+                    description: Legal name of the merchant
+                    title: Legal Name
+                    type: string
+                display_name:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    description: The display name of the merchant
+                    title: Display Name
+                website:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    description: The website of the merchant
+                    title: Website
+                email:
+                    description: The email of the merchant
+                    format: email
+                    title: Email
+                    type: string
+                email_invoice:
+                    anyOf:
+                    -   format: email
+                        type: string
+                    -   type: 'null'
+                    default: null
+                    description: The email for invoices of the merchant
+                    title: Email Invoice
+                email_erp:
+                    anyOf:
+                    -   format: email
+                        type: string
+                    -   type: 'null'
+                    default: null
+                    description: The email for ERP of the merchant
+                    title: Email Erp
+                phone:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    description: Phone number of the merchant
+                    title: Phone
+                phone_invoice:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    description: Phone number for invoices of the merchant
+                    title: Phone Invoice
+                address_lines:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    description: The address lines of the merchant
+                    title: Address Lines
+                address_city:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    description: City of the merchant
+                    title: Address City
+                address_postal_code:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    description: Postal code of the merchant
+                    title: Address Postal Code
+                address_country_code:
+                    anyOf:
+                    -   $ref: '#/components/schemas/CountryCodeEnum'
+                    -   type: 'null'
+                    default: null
+                    description: Country code of the merchant
+                due_in_days:
+                    anyOf:
+                    -   type: integer
+                    -   type: 'null'
+                    default: null
+                    description: The due in days
+                    title: Due In Days
+                gov_due_in_days:
+                    anyOf:
+                    -   type: integer
+                    -   type: 'null'
+                    default: null
+                    description: The government due in days
+                    title: Gov Due In Days
+                bank_statement_email_addresses:
+                    anyOf:
+                    -   items:
+                            format: email
+                            type: string
+                        type: array
+                    -   type: 'null'
+                    default: null
+                    description: The bank statement email addresses of the merchant
+                    title: Bank Statement Email Addresses
+                statement_email_cycle:
+                    anyOf:
+                    -   $ref: '#/components/schemas/PayoutPlanEnum'
+                    -   type: 'null'
+                    default: null
+                    description: The statement email cycle of the merchant
+                partner:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    description: The partner's short name
+                    title: Partner
+                partner_id:
+                    anyOf:
+                    -   format: uuid
+                        type: string
+                    -   type: 'null'
+                    default: null
+                    description: The partner's ID
+                    title: Partner Id
+                portal_users:
+                    anyOf:
+                    -   items:
+                            $ref: '#/components/schemas/UserSchema'
+                        type: array
+                    -   type: 'null'
+                    default: null
+                    title: Portal Users
+                direct_invoice_payment_means:
+                    anyOf:
+                    -   items:
+                            $ref: '#/components/schemas/PartnerPaymentMeansRequestSchema'
+                        type: array
+                    -   type: 'null'
+                    default: null
+                    title: Direct Invoice Payment Means
+                payout_accounts:
+                    anyOf:
+                    -   items:
+                            $ref: '#/components/schemas/PartnerPayoutAccountRequestSchema'
+                        type: array
+                    -   type: 'null'
+                    default: null
+                    title: Payout Accounts
+            required:
+            - country_code
+            - national_id
+            - legal_name
+            - email
+            title: CreatePartnerMerchantRequestSchemaV2
+            type: object
+        PartnerPaymentMeansRequestSchema:
+            properties:
+                type:
+                    $ref: '#/components/schemas/PaymentMeansType'
+                branch_code:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    title: Branch Code
+                account_number:
+                    title: Account Number
+                    type: string
+                currency:
+                    $ref: '#/components/schemas/CurrencyEnum'
+            required:
+            - type
+            - account_number
+            - currency
+            title: PartnerPaymentMeansRequestSchema
+            type: object
+        PartnerPayoutAccountRequestSchema:
+            properties:
+                currency:
+                    $ref: '#/components/schemas/CurrencyEnum'
+                description:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    title: Description
+                sale_country_code:
+                    $ref: '#/components/schemas/PayoutCountryCodeEnum'
+                merchant_payout_account_alias:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    title: Merchant Payout Account Alias
+                payout_plan:
+                    anyOf:
+                    -   $ref: '#/components/schemas/PayoutPlanEnum'
+                    -   type: 'null'
+                    default: null
+                bank_country_code:
+                    anyOf:
+                    -   $ref: '#/components/schemas/CountryCodeEnum'
+                    -   type: 'null'
+                    default: null
+                bban:
+                    anyOf:
+                    -   maxLength: 30
+                        minLength: 8
+                        pattern: ^[0-9A-Za-z]*$
+                        type: string
+                    -   type: 'null'
+                    default: null
+                    title: Bban
+                iban:
+                    anyOf:
+                    -   maxLength: 34
+                        minLength: 15
+                        pattern: ^[0-9A-Za-z]*$
+                        type: string
+                    -   type: 'null'
+                    default: null
+                    title: Iban
+                bic:
+                    anyOf:
+                    -   maxLength: 12
+                        minLength: 8
+                        pattern: ^[0-9A-Za-z]*$
+                        type: string
+                    -   type: 'null'
+                    default: null
+                    title: Bic
+                recipient_name:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    title: Recipient Name
+                branch_sort_code:
+                    anyOf:
+                    -   maxLength: 9
+                        minLength: 6
+                        pattern: ^[0-9]*$
+                        type: string
+                    -   type: 'null'
+                    default: null
+                    title: Branch Sort Code
+                local_account_number:
+                    anyOf:
+                    -   maxLength: 17
+                        minLength: 4
+                        pattern: ^[0-9]*$
+                        type: string
+                    -   type: 'null'
+                    default: null
+                    title: Local Account Number
+            required:
+            - currency
+            - sale_country_code
+            title: PartnerPayoutAccountRequestSchema
+            type: object
+        PaymentMeansType:
+            enum:
+            - GB_CREDIT_TRANSFER
+            - NO_CREDIT_TRANSFER
+            - SE_BANKGIRO
+            - US_ACH
+            - EU_CREDIT_TRANSFER
+            - DK_CREDIT_TRANSFER
+            - IBAN
+            - SWIFT
+            title: PaymentMeansType
+            type: string
+        PayoutCountryCodeEnum:
+            enum:
+            - AT
+            - BE
+            - CH
+            - CZ
+            - DE
+            - DK
+            - EE
+            - ES
+            - FI
+            - FR
+            - GB
+            - GR
+            - IE
+            - IT
+            - 'NO'
+            - NL
+            - PL
+            - RO
+            - SE
+            - SI
+            - US
+            - ALL
+            title: PayoutCountryCodeEnum
+            type: string
+        UserRoleEnum:
+            enum:
+            - ADMIN
+            - ACCOUNTANT
+            - DEVELOPER
+            - USER
+            - READ_ONLY
+            title: UserRoleEnum
+            type: string
+        UserSchema:
+            properties:
+                first_name:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    title: First Name
+                last_name:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    title: Last Name
+                team:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    title: Team
+                phone_number:
+                    title: Phone Number
+                    type: string
+                email:
+                    format: email
+                    title: Email
+                    type: string
+                role:
+                    anyOf:
+                    -   $ref: '#/components/schemas/UserRoleEnum'
+                    -   type: 'null'
+                    default: null
+                auth_token:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    title: Auth Token
+                auth_token_expiry:
+                    anyOf:
+                    -   format: date-time
+                        type: string
+                    -   type: 'null'
+                    default: null
+                    title: Auth Token Expiry
+            required:
+            - phone_number
+            - email
+            title: UserSchema
+            type: object
+        CreatePartnerMerchantResponseSchemaV2:
+            examples:
+            -   account_enabled: true
+                account_executive: null
+                address_city: OSLO
+                address_country_code: 'NO'
+                address_lines: Testplass 1
+                address_postal_code: '1111'
+                buyer_fallback_enabled: false
+                country_code: 'NO'
+                display_email: null
+                display_name: Two AS
+                display_phone_number: null
+                due_in_days: null
+                email: test@two.inc
+                email_erp: erp@two.inc
+                email_invoice: invoice@two.inc
+                fee_currency: NOK
+                fixed_fee_per_order: '0.00'
+                id: 3d26e5b2-3ee6-466f-96b3-5591500eb4fb
+                lead_type: null
+                legal_name: Two AS
+                logo_path: https://test.com/test.png
+                merchant_initiated_enabled: false
+                national_id: '925976105'
+                onboarding_events: null
+                partner: two
+                payee_accounts:
+                -   bank_account:
+                        bban: '11111111111'
+                        bic: DNBANOKK
+                        branch_sort_code: null
+                        country_code: 'NO'
+                        description: Bank Account Test
+                        iban: NO9311111111111
+                        id: null
+                        kid_type: null
+                        local_account_number: null
+                        organization_name: Two AS
+                        organization_number: '925976105'
+                    external_app_id: ''
+                    external_merchant_id: ''
+                    external_ref_url: ''
+                    external_status: null
+                    id: null
+                    invoice_type: FUNDED_INVOICE
+                    payout_plan: DAILY
+                    provider_id: APRILA
+                    recourse: false
+                    region: 'NO'
+                -   bank_account:
+                        bban: '11111111111'
+                        bic: DNBANOKK
+                        branch_sort_code: null
+                        country_code: 'NO'
+                        description: Bank Account Test
+                        iban: NO9311111111111
+                        id: null
+                        kid_type: null
+                        local_account_number: null
+                        organization_name: Two AS
+                        organization_number: '925976105'
+                    external_app_id: ''
+                    external_merchant_id: ''
+                    external_ref_url: ''
+                    external_status: null
+                    id: null
+                    invoice_type: DIRECT_INVOICE
+                    payout_plan: MONTHLY
+                    provider_id: MERCHANT
+                    recourse: false
+                    region: 'NO'
+                payment_provider_details: null
+                percentage_fee_per_order: '2.000000'
+                phone: '+4712345678'
+                phone_invoice: '+4712345670'
+                platform_type: null
+                product_type: null
+                sales_development_rep: null
+                short_name: testshortname
+                vat_number: null
+                vat_registered: false
+                web_developer: null
+                website: https://two.inc
+            -   account_enabled: true
+                account_executive: null
+                address_city: OSLO
+                address_country_code: 'NO'
+                address_lines: Testplass 1
+                address_postal_code: '1111'
+                buyer_fallback_enabled: false
+                country_code: 'NO'
+                display_email: null
+                display_name: Two AS
+                display_phone_number: null
+                due_in_days: null
+                email: test@two.inc
+                email_erp: erp@two.inc
+                email_invoice: invoice@two.inc
+                fee_currency: NOK
+                fixed_fee_per_order: '0.00'
+                id: 3d26e5b2-3ee6-466f-96b3-5591500eb4fb
+                lead_type: null
+                legal_name: Two AS
+                logo_path: https://test.com/test.png
+                merchant_initiated_enabled: false
+                national_id: '925976105'
+                onboarding_events: null
+                partner: two
+                payee_accounts:
+                -   bank_account:
+                        bban: '11111111111'
+                        bic: DNBANOKK
+                        branch_sort_code: null
+                        country_code: 'NO'
+                        description: Bank Account Test
+                        iban: NO9311111111111
+                        id: null
+                        kid_type: null
+                        local_account_number: null
+                        organization_name: Two AS
+                        organization_number: '925976105'
+                    external_app_id: ''
+                    external_merchant_id: ''
+                    external_ref_url: ''
+                    external_status: null
+                    id: null
+                    invoice_type: FUNDED_INVOICE
+                    payout_plan: DAILY
+                    provider_id: APRILA
+                    recourse: false
+                    region: 'NO'
+                -   bank_account:
+                        bban: '11111111111'
+                        bic: DNBANOKK
+                        branch_sort_code: null
+                        country_code: 'NO'
+                        description: Bank Account Test
+                        iban: NO9311111111111
+                        id: null
+                        kid_type: null
+                        local_account_number: null
+                        organization_name: Two AS
+                        organization_number: '925976105'
+                    external_app_id: ''
+                    external_merchant_id: ''
+                    external_ref_url: ''
+                    external_status: null
+                    id: null
+                    invoice_type: DIRECT_INVOICE
+                    payout_plan: MONTHLY
+                    provider_id: MERCHANT
+                    recourse: false
+                    region: 'NO'
+                payment_provider_details: null
+                percentage_fee_per_order: '2.000000'
+                phone: '+4712345678'
+                phone_invoice: '+4712345670'
+                platform_type: null
+                product_type: null
+                sales_development_rep: null
+                short_name: testshortname
+                vat_number: null
+                vat_registered: false
+                web_developer: null
+                website: https://two.inc
+            properties:
+                id:
+                    anyOf:
+                    -   format: uuid
+                        type: string
+                    -   type: 'null'
+                    default: null
+                    description: Unique identifier of the merchant
+                    title: Id
+                date_updated:
+                    description: Date the merchant was last updated (UTC)
+                    format: date-time
+                    title: Date Updated
+                    type: string
+                date_created:
+                    description: Date the merchant was created (UTC)
+                    format: date-time
+                    title: Date Created
+                    type: string
+                short_name:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    description: Short name of the merchant
+                    title: Short Name
+                logo_path:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    description: 'The logo URL, valid extensions are: .png, .svg'
+                    title: Logo Path
+                vat_number:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    description: VAT number of the merchant
+                    title: Vat Number
+                vat_registered:
+                    default: false
+                    description: Whether the merchant is VAT registered
+                    title: Vat Registered
+                    type: boolean
+                country_code:
+                    $ref: '#/components/schemas/CountryCodeEnum'
+                    description: Country code of the merchant
+                national_id:
+                    description: National ID of the merchant
+                    title: National Id
+                    type: string
+                legal_name:
+                    description: Legal name of the merchant
+                    title: Legal Name
+                    type: string
+                display_name:
+                    description: Display name of the merchant
+                    title: Display Name
+                    type: string
+                display_phone_number:
+                    anyOf:
+                    -   type: boolean
+                    -   type: 'null'
+                    default: null
+                    description: Whether to display the phone number on the invoice
+                    title: Display Phone Number
+                display_email:
+                    anyOf:
+                    -   type: boolean
+                    -   type: 'null'
+                    default: null
+                    description: Whether to display the email on the invoice
+                    title: Display Email
+                website:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    description: Website of the merchant
+                    title: Website
+                email:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    description: Merchant's email address
+                    title: Email
+                email_invoice:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    description: Email address for invoices
+                    title: Email Invoice
+                email_erp:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    description: Email address of the ERP system
+                    title: Email Erp
+                phone:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    description: Merchant's phone number
+                    title: Phone
+                phone_invoice:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    description: Phone number for invoices
+                    title: Phone Invoice
+                address_lines:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    description: Address lines of the merchant, separated by commas
+                    title: Address Lines
+                address_city:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    description: City of the merchant
+                    title: Address City
+                address_postal_code:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    description: Postal code of the merchant
+                    title: Address Postal Code
+                address_country_code:
+                    anyOf:
+                    -   $ref: '#/components/schemas/CountryCodeEnum'
+                    -   type: 'null'
+                    default: null
+                    description: Country code of the merchant
+                fee_currency:
+                    $ref: '#/components/schemas/CurrencyEnum'
+                    description: Currency of the fees
+                fixed_fee_per_order:
+                    description: Fixed fee per order
+                    format: decimal
+                    pattern: ^-?[0-9]+(\.[0-9]{0,2})?
+                    title: Fixed Fee Per Order
+                    type: string
+                percentage_fee_per_order:
+                    description: Percentage fee per order
+                    format: decimal
+                    pattern: ^-?[0-9]+(\.[0-9]{0,6})?
+                    title: Percentage Fee Per Order
+                    type: string
+                due_in_days:
+                    anyOf:
+                    -   type: integer
+                    -   type: 'null'
+                    default: null
+                    description: Invoice due in days
+                    title: Due In Days
+                gov_due_in_days:
+                    anyOf:
+                    -   type: integer
+                    -   type: 'null'
+                    default: null
+                    description: Government invoice due in days
+                    title: Gov Due In Days
+                bank_statement_email:
+                    anyOf:
+                    -   format: email
+                        type: string
+                    -   type: 'null'
+                    default: null
+                    deprecated: true
+                    description: Bank statement email address
+                    title: Bank Statement Email
+                bank_statement_email_addresses:
+                    anyOf:
+                    -   items:
+                            format: email
+                            type: string
+                        type: array
+                    -   type: 'null'
+                    default: null
+                    description: Bank statement email addresses
+                    title: Bank Statement Email Addresses
+                statement_email_cycle:
+                    anyOf:
+                    -   $ref: '#/components/schemas/PayoutPlanEnum'
+                    -   type: 'null'
+                    default: null
+                    description: Statement email cycle
+                account_enabled:
+                    anyOf:
+                    -   type: boolean
+                    -   type: 'null'
+                    default: null
+                    description: Whether the account is enabled
+                    title: Account Enabled
+                bank_statement_email_is_enabled:
+                    anyOf:
+                    -   type: boolean
+                    -   type: 'null'
+                    default: null
+                    description: Whether the bank statement email is enabled
+                    title: Bank Statement Email Is Enabled
+                buyer_fallback_enabled:
+                    anyOf:
+                    -   type: boolean
+                    -   type: 'null'
+                    default: null
+                    description: Whether the buyer fallback is enabled
+                    title: Buyer Fallback Enabled
+                sole_trader_fallback:
+                    anyOf:
+                    -   type: boolean
+                    -   type: 'null'
+                    default: null
+                    description: Whether the sole trader fallback is enabled
+                    title: Sole Trader Fallback
+                buyer_credit_limit_enabled:
+                    anyOf:
+                    -   type: boolean
+                    -   type: 'null'
+                    default: null
+                    description: Whether the buyer credit limit is enabled
+                    title: Buyer Credit Limit Enabled
+                merchant_initiated_enabled:
+                    anyOf:
+                    -   type: boolean
+                    -   type: 'null'
+                    default: null
+                    description: Whether the merchant initiated is enabled
+                    title: Merchant Initiated Enabled
+                in_store_orders_enabled:
+                    anyOf:
+                    -   type: boolean
+                    -   type: 'null'
+                    default: null
+                    description: Whether the in store orders are enabled
+                    title: In Store Orders Enabled
+                api_key_management_enabled:
+                    anyOf:
+                    -   type: boolean
+                    -   type: 'null'
+                    default: null
+                    description: Whether the API key management is enabled
+                    title: Api Key Management Enabled
+                partner:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    description: Partner merchant's short name
+                    title: Partner
+                partner_id:
+                    anyOf:
+                    -   format: uuid
+                        type: string
+                    -   type: 'null'
+                    default: null
+                    description: Partner merchant's ID
+                    title: Partner Id
+                portal_users:
+                    anyOf:
+                    -   items:
+                            $ref: '#/components/schemas/UserSchema'
+                        type: array
+                    -   type: 'null'
+                    default: null
+                    title: Portal Users
+                direct_invoice_payment_means:
+                    anyOf:
+                    -   items:
+                            $ref: '#/components/schemas/PartnerPaymentMeansRequestSchema'
+                        type: array
+                    -   type: 'null'
+                    default: null
+                    title: Direct Invoice Payment Means
+                payout_accounts:
+                    anyOf:
+                    -   items:
+                            $ref: '#/components/schemas/PartnerPayoutAccountRequestSchema'
+                        type: array
+                    -   type: 'null'
+                    default: null
+                    title: Payout Accounts
+            required:
+            - date_updated
+            - date_created
+            - country_code
+            - national_id
+            - legal_name
+            - display_name
+            - fee_currency
+            - fixed_fee_per_order
+            - percentage_fee_per_order
+            title: CreatePartnerMerchantResponseSchemaV2
+            type: object
+        PartnerMerchantResponseSchemaV2:
+            examples:
+            -   account_enabled: true
+                account_executive: null
+                address_city: OSLO
+                address_country_code: 'NO'
+                address_lines: Testplass 1
+                address_postal_code: '1111'
+                buyer_fallback_enabled: false
+                country_code: 'NO'
+                display_email: null
+                display_name: Two AS
+                display_phone_number: null
+                due_in_days: null
+                email: test@two.inc
+                email_erp: erp@two.inc
+                email_invoice: invoice@two.inc
+                fee_currency: NOK
+                fixed_fee_per_order: '0.00'
+                id: 3d26e5b2-3ee6-466f-96b3-5591500eb4fb
+                lead_type: null
+                legal_name: Two AS
+                logo_path: https://test.com/test.png
+                merchant_initiated_enabled: false
+                national_id: '925976105'
+                onboarding_events: null
+                partner: two
+                payee_accounts:
+                -   bank_account:
+                        bban: '11111111111'
+                        bic: DNBANOKK
+                        branch_sort_code: null
+                        country_code: 'NO'
+                        description: Bank Account Test
+                        iban: NO9311111111111
+                        id: null
+                        kid_type: null
+                        local_account_number: null
+                        organization_name: Two AS
+                        organization_number: '925976105'
+                    external_app_id: ''
+                    external_merchant_id: ''
+                    external_ref_url: ''
+                    external_status: null
+                    id: null
+                    invoice_type: FUNDED_INVOICE
+                    payout_plan: DAILY
+                    provider_id: APRILA
+                    recourse: false
+                    region: 'NO'
+                -   bank_account:
+                        bban: '11111111111'
+                        bic: DNBANOKK
+                        branch_sort_code: null
+                        country_code: 'NO'
+                        description: Bank Account Test
+                        iban: NO9311111111111
+                        id: null
+                        kid_type: null
+                        local_account_number: null
+                        organization_name: Two AS
+                        organization_number: '925976105'
+                    external_app_id: ''
+                    external_merchant_id: ''
+                    external_ref_url: ''
+                    external_status: null
+                    id: null
+                    invoice_type: DIRECT_INVOICE
+                    payout_plan: MONTHLY
+                    provider_id: MERCHANT
+                    recourse: false
+                    region: 'NO'
+                payment_provider_details: null
+                percentage_fee_per_order: '2.000000'
+                phone: '+4712345678'
+                phone_invoice: '+4712345670'
+                platform_type: null
+                product_type: null
+                sales_development_rep: null
+                short_name: testshortname
+                vat_number: null
+                vat_registered: false
+                web_developer: null
+                website: https://two.inc
+            -   account_enabled: true
+                account_executive: null
+                address_city: OSLO
+                address_country_code: 'NO'
+                address_lines: Testplass 1
+                address_postal_code: '1111'
+                buyer_fallback_enabled: false
+                country_code: 'NO'
+                display_email: null
+                display_name: Two AS
+                display_phone_number: null
+                due_in_days: null
+                email: test@two.inc
+                email_erp: erp@two.inc
+                email_invoice: invoice@two.inc
+                fee_currency: NOK
+                fixed_fee_per_order: '0.00'
+                id: 3d26e5b2-3ee6-466f-96b3-5591500eb4fb
+                lead_type: null
+                legal_name: Two AS
+                logo_path: https://test.com/test.png
+                merchant_initiated_enabled: false
+                national_id: '925976105'
+                onboarding_events: null
+                partner: two
+                payee_accounts:
+                -   bank_account:
+                        bban: '11111111111'
+                        bic: DNBANOKK
+                        branch_sort_code: null
+                        country_code: 'NO'
+                        description: Bank Account Test
+                        iban: NO9311111111111
+                        id: null
+                        kid_type: null
+                        local_account_number: null
+                        organization_name: Two AS
+                        organization_number: '925976105'
+                    external_app_id: ''
+                    external_merchant_id: ''
+                    external_ref_url: ''
+                    external_status: null
+                    id: null
+                    invoice_type: FUNDED_INVOICE
+                    payout_plan: DAILY
+                    provider_id: APRILA
+                    recourse: false
+                    region: 'NO'
+                -   bank_account:
+                        bban: '11111111111'
+                        bic: DNBANOKK
+                        branch_sort_code: null
+                        country_code: 'NO'
+                        description: Bank Account Test
+                        iban: NO9311111111111
+                        id: null
+                        kid_type: null
+                        local_account_number: null
+                        organization_name: Two AS
+                        organization_number: '925976105'
+                    external_app_id: ''
+                    external_merchant_id: ''
+                    external_ref_url: ''
+                    external_status: null
+                    id: null
+                    invoice_type: DIRECT_INVOICE
+                    payout_plan: MONTHLY
+                    provider_id: MERCHANT
+                    recourse: false
+                    region: 'NO'
+                payment_provider_details: null
+                percentage_fee_per_order: '2.000000'
+                phone: '+4712345678'
+                phone_invoice: '+4712345670'
+                platform_type: null
+                product_type: null
+                sales_development_rep: null
+                short_name: testshortname
+                vat_number: null
+                vat_registered: false
+                web_developer: null
+                website: https://two.inc
+            properties:
+                id:
+                    anyOf:
+                    -   format: uuid
+                        type: string
+                    -   type: 'null'
+                    default: null
+                    description: Unique identifier of the merchant
+                    title: Id
+                date_updated:
+                    description: Date the merchant was last updated (UTC)
+                    format: date-time
+                    title: Date Updated
+                    type: string
+                date_created:
+                    description: Date the merchant was created (UTC)
+                    format: date-time
+                    title: Date Created
+                    type: string
+                short_name:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    description: Short name of the merchant
+                    title: Short Name
+                logo_path:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    description: 'The logo URL, valid extensions are: .png, .svg'
+                    title: Logo Path
+                vat_number:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    description: VAT number of the merchant
+                    title: Vat Number
+                vat_registered:
+                    default: false
+                    description: Whether the merchant is VAT registered
+                    title: Vat Registered
+                    type: boolean
+                country_code:
+                    $ref: '#/components/schemas/CountryCodeEnum'
+                    description: Country code of the merchant
+                national_id:
+                    description: National ID of the merchant
+                    title: National Id
+                    type: string
+                legal_name:
+                    description: Legal name of the merchant
+                    title: Legal Name
+                    type: string
+                display_name:
+                    description: Display name of the merchant
+                    title: Display Name
+                    type: string
+                display_phone_number:
+                    anyOf:
+                    -   type: boolean
+                    -   type: 'null'
+                    default: null
+                    description: Whether to display the phone number on the invoice
+                    title: Display Phone Number
+                display_email:
+                    anyOf:
+                    -   type: boolean
+                    -   type: 'null'
+                    default: null
+                    description: Whether to display the email on the invoice
+                    title: Display Email
+                website:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    description: Website of the merchant
+                    title: Website
+                email:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    description: Merchant's email address
+                    title: Email
+                email_invoice:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    description: Email address for invoices
+                    title: Email Invoice
+                email_erp:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    description: Email address of the ERP system
+                    title: Email Erp
+                phone:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    description: Merchant's phone number
+                    title: Phone
+                phone_invoice:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    description: Phone number for invoices
+                    title: Phone Invoice
+                address_lines:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    description: Address lines of the merchant, separated by commas
+                    title: Address Lines
+                address_city:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    description: City of the merchant
+                    title: Address City
+                address_postal_code:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    description: Postal code of the merchant
+                    title: Address Postal Code
+                address_country_code:
+                    anyOf:
+                    -   $ref: '#/components/schemas/CountryCodeEnum'
+                    -   type: 'null'
+                    default: null
+                    description: Country code of the merchant
+                fee_currency:
+                    $ref: '#/components/schemas/CurrencyEnum'
+                    description: Currency of the fees
+                fixed_fee_per_order:
+                    description: Fixed fee per order
+                    format: decimal
+                    pattern: ^-?[0-9]+(\.[0-9]{0,2})?
+                    title: Fixed Fee Per Order
+                    type: string
+                percentage_fee_per_order:
+                    description: Percentage fee per order
+                    format: decimal
+                    pattern: ^-?[0-9]+(\.[0-9]{0,6})?
+                    title: Percentage Fee Per Order
+                    type: string
+                due_in_days:
+                    anyOf:
+                    -   type: integer
+                    -   type: 'null'
+                    default: null
+                    description: Invoice due in days
+                    title: Due In Days
+                gov_due_in_days:
+                    anyOf:
+                    -   type: integer
+                    -   type: 'null'
+                    default: null
+                    description: Government invoice due in days
+                    title: Gov Due In Days
+                bank_statement_email:
+                    anyOf:
+                    -   format: email
+                        type: string
+                    -   type: 'null'
+                    default: null
+                    deprecated: true
+                    description: Bank statement email address
+                    title: Bank Statement Email
+                bank_statement_email_addresses:
+                    anyOf:
+                    -   items:
+                            format: email
+                            type: string
+                        type: array
+                    -   type: 'null'
+                    default: null
+                    description: Bank statement email addresses
+                    title: Bank Statement Email Addresses
+                statement_email_cycle:
+                    anyOf:
+                    -   $ref: '#/components/schemas/PayoutPlanEnum'
+                    -   type: 'null'
+                    default: null
+                    description: Statement email cycle
+                account_enabled:
+                    anyOf:
+                    -   type: boolean
+                    -   type: 'null'
+                    default: null
+                    description: Whether the account is enabled
+                    title: Account Enabled
+                bank_statement_email_is_enabled:
+                    anyOf:
+                    -   type: boolean
+                    -   type: 'null'
+                    default: null
+                    description: Whether the bank statement email is enabled
+                    title: Bank Statement Email Is Enabled
+                buyer_fallback_enabled:
+                    anyOf:
+                    -   type: boolean
+                    -   type: 'null'
+                    default: null
+                    description: Whether the buyer fallback is enabled
+                    title: Buyer Fallback Enabled
+                sole_trader_fallback:
+                    anyOf:
+                    -   type: boolean
+                    -   type: 'null'
+                    default: null
+                    description: Whether the sole trader fallback is enabled
+                    title: Sole Trader Fallback
+                buyer_credit_limit_enabled:
+                    anyOf:
+                    -   type: boolean
+                    -   type: 'null'
+                    default: null
+                    description: Whether the buyer credit limit is enabled
+                    title: Buyer Credit Limit Enabled
+                merchant_initiated_enabled:
+                    anyOf:
+                    -   type: boolean
+                    -   type: 'null'
+                    default: null
+                    description: Whether the merchant initiated is enabled
+                    title: Merchant Initiated Enabled
+                in_store_orders_enabled:
+                    anyOf:
+                    -   type: boolean
+                    -   type: 'null'
+                    default: null
+                    description: Whether the in store orders are enabled
+                    title: In Store Orders Enabled
+                api_key_management_enabled:
+                    anyOf:
+                    -   type: boolean
+                    -   type: 'null'
+                    default: null
+                    description: Whether the API key management is enabled
+                    title: Api Key Management Enabled
+                partner:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    description: Partner merchant's short name
+                    title: Partner
+                partner_id:
+                    anyOf:
+                    -   format: uuid
+                        type: string
+                    -   type: 'null'
+                    default: null
+                    description: Partner merchant's ID
+                    title: Partner Id
+                portal_users:
+                    anyOf:
+                    -   items:
+                            $ref: '#/components/schemas/UserSchema'
+                        type: array
+                    -   type: 'null'
+                    default: null
+                    title: Portal Users
+                direct_invoice_payment_means:
+                    anyOf:
+                    -   items:
+                            $ref: '#/components/schemas/PartnerPaymentMeansRequestSchema'
+                        type: array
+                    -   type: 'null'
+                    default: null
+                    title: Direct Invoice Payment Means
+                payout_accounts:
+                    anyOf:
+                    -   items:
+                            $ref: '#/components/schemas/PartnerPayoutAccountRequestSchema'
+                        type: array
+                    -   type: 'null'
+                    default: null
+                    title: Payout Accounts
+            required:
+            - date_updated
+            - date_created
+            - country_code
+            - national_id
+            - legal_name
+            - display_name
+            - fee_currency
+            - fixed_fee_per_order
+            - percentage_fee_per_order
+            title: PartnerMerchantResponseSchemaV2
+            type: object
+        PartnerMerchantResponseListSchemaV2:
+            properties:
+                root:
+                    description: List of merchants
+                    items:
+                        $ref: '#/components/schemas/PartnerMerchantResponseSchemaV2'
+                    title: Root
+                    type: array
+            required:
+            - root
+            title: PartnerMerchantResponseListSchemaV2
+            type: object
+    securitySchemes:
+        X-Api-Key:
+            type: apiKey
+            description: |-
+                For instructions on how to obtain API keys, visit [this page](/docs/guides/getting-api-keys-page/).
+                You will obtain two different keys, an initial one for testing in our sandbox environment and once ready, for production.
+                Your API keys enables others to act on your behalf if they are able to obtain them, so make sure to keep them safe.
+                Your API key is not to be shared with anyone, including in your version control system, client-side code, in public chatrooms and so on.
+                The API key is applied in the request header. For example:
+                ```
+                GET /something
+                X-Api-Key: secret_test_aabbccddeeff0123456789
+                ```
+
+                API Keys have the following structure: `secret_<env>_<key>` where:
+                - `env` is determined by the environment (`prod` for production, `test` for test environments)
+                - `key` is a random, URL-safe, 64-bit encoded text string containing 32 random bytes.
+            name: X-Api-Key
+            in: header
+servers:
+-   url: https://api.sandbox.two.inc
+    description: Testing
+-   url: https://api.two.inc
+    description: Production
+security: []

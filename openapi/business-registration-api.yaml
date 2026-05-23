@@ -1,0 +1,1871 @@
+openapi: 3.1.0
+info:
+    title: Business Registration API
+    version: '1.0'
+    description: |-
+        API for enrolling businesses that do not appear in national registries, e.g. sole traders and
+        government departments.
+
+        To create trade accounts or orders for such businesses, a proposal must first be created and then submitted via this API
+        for Two to enrol the business.
+
+        ---
+
+        ## Integration Options
+
+        ### Option 1: Interactive popup (recommended)
+
+        This approach uses Two's hosted popup to handle both returning buyers and new registrations.
+
+        **Step 1: Check for existing buyer data**
+
+        From your server, obtain an Autofill API delegation token (`POST /autofill/v1/delegation`) with `read_current_buyer: true`.
+        Pass this token to the buyer's browser and call `GET /autofill/v1/buyer/current` with the token in the
+        `Two-Delegated-Authority-Token` header. If the buyer has previously saved their details on this device, their
+        business information is returned - use it directly without further steps.
+
+        **Step 2: If no autofill data, obtain delegation tokens for the popup**
+
+        From your server, request delegation tokens from both APIs:
+
+        1. **Business Registration API** (`POST /registry/v1/delegation`):
+           - `verify_returning_buyer: true` - allows email verification of returning buyers
+           - `create_proposal: true` - allows new buyer registration
+
+        2. **Autofill API** (`POST /autofill/v1/delegation`):
+           - `write_current_buyer: true` - allows the popup to save buyer details on completion
+           - `read_current_buyer: true` - allows retrieval after completion
+
+        **Step 3: Open the signup popup**
+
+        Pass both tokens to the buyer's browser and open a popup to `https://checkout.two.inc/soletrader/signup` with:
+
+        | Parameter | Required | Description |
+        |-----------|----------|-------------|
+        | `authToken` | Yes | Delegation token from Business Registration API |
+        | `autofillToken` | Yes | Delegation token from Autofill API |
+        | `autofillData` | No | URL-encoded JSON of buyer details to pre-populate the form |
+
+        The popup handles email verification for returning buyers, or guides new buyers through registration.
+
+        **Step 4: Retrieve buyer details**
+
+        When the popup closes, call `GET /autofill/v1/buyer/current` with your Autofill delegation token to retrieve
+        the buyer's business details (company name, country code, organization number, addresses).
+
+        ---
+
+        ### Option 2: Direct API integration
+
+        For full control over the user experience, integrate directly with the API endpoints.
+
+        **Returning buyer flow:**
+
+        Before creating a new proposal, check if the buyer already has a registered business:
+
+        1. Call `POST /proposal/returning-buyer/verification` with the buyer's email address
+           - **201**: Verification code sent - a business exists for this email
+           - **404**: No existing business - proceed with new registration
+        2. If 404, the buyer is not already registered. Skip to "New buyer registration flow".
+        3. If 201, prompt the buyer for the verification code and call `PATCH /proposal/returning-buyer/verification`
+        4. On success, the response contains the buyer's business details - use them directly
+
+        **New buyer registration flow:**
+
+        If no existing business is found:
+
+        1. Collect buyer information and `POST /registry/v1/proposal`
+        2. The proposal is created with status `DRAFT`
+        3. Optionally upload supporting evidence while in `DRAFT` status
+        4. Submit the proposal for review via the submission endpoint
+
+        **Proposal lifecycle:**
+
+        | Status | Description |
+        |--------|-------------|
+        | `DRAFT` | Initial state. Evidence can be uploaded. |
+        | `SUBMITTED` | Automated evaluation in progress. |
+        | `IN_REVIEW` | Manual review required. |
+        | `ACCEPTED` | Approved. Synthetic organization number generated. |
+        | `DECLINED` | Rejected. |
+        | `WITHDRAWN` | Cancelled via DELETE while `SUBMITTED` or `IN_REVIEW`. |
+
+        **Retrieving the organization number:**
+
+        Once the proposal is accepted, Two generates a synthetic organization number. There are two ways to retrieve it:
+
+        1. **Webhook (recommended)**: Configure a webhook to receive `enrollment.approved` events. The webhook
+           payload includes the `organization_number` directly, eliminating the need to poll.
+
+        2. **Polling**: Call `GET /registry/v1/proposal/<built-in function id>` periodically. When `status` becomes `ACCEPTED`,
+           the `enrolled_business` field will be populated with the business details including `organization_number`.
+
+        Use the organization number on other Two APIs (trade accounts, orders, etc.) exactly like a
+        registered business number.
+
+        ---
+
+        ## Notes
+
+        - During review, Two may contact the business or merchant for additional information.
+        - Personal information in proposals is redacted after reaching `ACCEPTED` or `DECLINED` status.
+        - Currently limited to **UK and US sole traders only**.
+
+        ---
+
+        ## Example: Testing the Interactive Popup Flow
+
+        The following shell commands demonstrate the complete popup integration flow. Run each step individually
+        (not as a script) to allow time for browser interactions.
+
+        **Prerequisites:** Set your API key as an environment variable:
+
+        ```bash
+        AUTH_HEADERS="X-API-Key: <your sandbox api key>"
+        API_BASE="https://api.sandbox.two.inc"
+        CHECKOUT_BASE="https://checkout.sandbox.two.inc"
+        ```
+
+        **Step 1: Check for existing buyer data**
+
+        ```bash
+        # Back-end: Get a read token for the Autofill API
+
+        AUTOFILL_READ_TOKEN=$(curl -s "$API_BASE/autofill/v1/delegation" \
+          -H "$AUTH_HEADERS" \
+          -H "Content-Type: application/json" \
+          -d '{"read_current_buyer": true}' \
+          -D - -o /dev/null | grep -i "two-delegated-authority-token:" | cut -d' ' -f2 | tr -d '\r')
+
+        # Front-end: Check if buyer has saved details available
+
+        open "$API_BASE/autofill/v1/buyer/current?Two-Delegated-Authority-Token=$AUTOFILL_READ_TOKEN"
+        ```
+
+        If a 404 is returned, the buyer has no saved data. Proceed to Step 2.
+
+        **Step 2: Open the signup popup**
+
+        ```bash
+        # Back-end: Get tokens for registration and autofill write access
+
+        AUTH_TOKEN=$(curl -s "$API_BASE/registry/v1/delegation" \
+          -H "$AUTH_HEADERS" \
+          -H "Content-Type: application/json" \
+          -d '{"verify_returning_buyer": true, "create_proposal": true}' \
+          -D - -o /dev/null | grep -i "two-delegated-authority-token:" | cut -d' ' -f2 | tr -d '\r')
+
+        AUTOFILL_WRITE_TOKEN=$(curl -s "$API_BASE/autofill/v1/delegation" \
+          -H "$AUTH_HEADERS" \
+          -H "Content-Type: application/json" \
+          -d '{"write_current_buyer": true}' \
+          -D - -o /dev/null | grep -i "two-delegated-authority-token:" | cut -d' ' -f2 | tr -d '\r')
+
+        # Front-end: Open the signup popup (complete the flow in the browser)
+
+        open "$CHECKOUT_BASE/soletrader/signup?authToken=$AUTH_TOKEN&autofillToken=$AUTOFILL_WRITE_TOKEN"
+        ```
+
+        The popup will:
+        1. Ask for the buyer's email and send a verification code
+        2. If a registered business is found, save details to Autofill and close
+        3. Otherwise, guide the buyer through registration, then save and close
+
+        **Step 3: Retrieve the buyer's details**
+
+        ```bash
+        # Front-end: After the popup closes, call autofill again (reusing the existing read token)
+
+        open "$API_BASE/autofill/v1/buyer/current?Two-Delegated-Authority-Token=$AUTOFILL_READ_TOKEN"
+        ```
+
+        **Interpreting the result:**
+        - **200 with data**: Business details retrieved successfully. Use `organization_number`, `country_code` and `company_name` to place orders.
+        - **404**: The buyer either cancelled, was rejected, or registration is still pending review.
+
+
+        ## Environments
+
+        ### Testing
+
+        [https://api.sandbox.two.inc](https://api.sandbox.two.inc/v1/health)
+
+        Note: Read about our [sandbox environment specific behaviour](/docs/guides/sandbox-behaviour-page/).
+
+        ### Production
+
+        [https://api.two.inc](https://api.two.inc/v1/health)
+tags:
+-   name: Business Registration
+paths:
+    /registry/v1/proposal:
+        post:
+            summary: Create proposal
+            operationId: create_proposal.post
+            description: 'Create a new proposal for a business to be enrolled with
+                Two, or for an existing enrollment to be updated. If this operation
+                is authorized by a delegated authority token (generated via `POST
+                .../delegation` with a body of `{"create_proposal": true}` and passed
+                as a request header called `Two-Delegated-Authority-Token`) rather
+                than by the merchant''s API key, the response will include a new delegated
+                authority token as a response header called `Two-Delegated-Authority-Token`
+                which may be used to track (`GET .../proposal/<id>`), withdraw (`DELETE
+                .../proposal/<id>`) or submit (`POST .../proposal/<id>/submission`)
+                the newly created proposal.'
+            tags:
+            - Business Registration
+            parameters:
+            -   name: Idempotency-Key
+                in: header
+                schema:
+                    anyOf:
+                    -   maxLength: 100
+                        type: string
+                    -   type: 'null'
+                    default: null
+                    title: Idempotency-Key
+                required: false
+                description: ''
+            responses:
+                '202':
+                    description: Proposal has been accepted for review.
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ProposalSchema'
+                '400':
+                    description: Proposal is invalid.
+            security:
+            -   X-Api-Key: []
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/CreateProposalSchema'
+        get:
+            summary: Get proposals
+            operationId: get_all_proposals.get
+            description: Get matching proposals. Search parameters are optional. If
+                `status` is omitted, only proposals currently requiring action are
+                returned (`DRAFT` proposals). The `status` filter accepts a single
+                value only; to retrieve multiple statuses, issue separate requests.
+                Supported `status` values are `DRAFT`, `UNVERIFIED`, `SUBMITTED`,
+                `REVIEWING`, `ACCEPTED`, `DECLINED`, and `WITHDRAWN`. Note that each
+                merchant may only access proposals lodged by the same merchant. Also
+                note that supplementary information is only included for proposals
+                that have not yet been accepted, declined or withdrawn.
+            tags:
+            - Business Registration
+            parameters:
+            -   name: page
+                in: query
+                schema:
+                    anyOf:
+                    -   minimum: 0
+                        type: integer
+                    -   type: 'null'
+                    default: null
+                    description: The requested page number, 1-based.
+                    title: Page
+                required: false
+                description: The requested page number, 1-based.
+            -   name: limit
+                in: query
+                schema:
+                    anyOf:
+                    -   minimum: 0
+                        type: integer
+                    -   type: 'null'
+                    default: null
+                    description: The maximum number of items on a single page, ie
+                        the page size.
+                    title: Limit
+                required: false
+                description: The maximum number of items on a single page, ie the
+                    page size.
+            -   name: business_type
+                in: query
+                schema:
+                    anyOf:
+                    -   $ref: '#/components/schemas/BusinessTypeEnum'
+                    -   type: 'null'
+                    default: null
+                required: false
+                description: ''
+            -   name: country_code
+                in: query
+                schema:
+                    anyOf:
+                    -   $ref: '#/components/schemas/CountryCodeEnum'
+                    -   type: 'null'
+                    default: null
+                required: false
+                description: ''
+            -   name: trading_name
+                in: query
+                schema:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    description: Case-insensitive partial match.
+                    title: Trading Name
+                required: false
+                description: Case-insensitive partial match.
+            -   name: email
+                in: query
+                schema:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    description: Exact match only.
+                    title: Email
+                required: false
+                description: Exact match only.
+            -   name: phone
+                in: query
+                schema:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    description: Exact match only.
+                    title: Phone
+                required: false
+                description: Exact match only.
+            -   name: status
+                in: query
+                schema:
+                    anyOf:
+                    -   $ref: '#/components/schemas/ProposalStatusEnum'
+                    -   type: 'null'
+                    default: null
+                    description: 'Optional single-value status filter. Merchant API
+                        supports: `DRAFT`, `UNVERIFIED`, `SUBMITTED`, `REVIEWING`,
+                        `ACCEPTED`, `DECLINED`, `WITHDRAWN`. Multiple statuses in
+                        one request are not supported. If omitted, merchant API returns
+                        proposals that currently require action (`DRAFT` proposals
+                        for the authenticated merchant).'
+                required: false
+                description: 'Optional single-value status filter. Merchant API supports:
+                    `DRAFT`, `UNVERIFIED`, `SUBMITTED`, `REVIEWING`, `ACCEPTED`, `DECLINED`,
+                    `WITHDRAWN`. Multiple statuses in one request are not supported.
+                    If omitted, merchant API returns proposals that currently require
+                    action (`DRAFT` proposals for the authenticated merchant).'
+            -   name: order_by
+                in: query
+                schema:
+                    $ref: '#/components/schemas/ProposalSearchOrderByEnum'
+                    default: date_created
+                    description: How to order the search results
+                required: false
+                description: How to order the search results
+            -   name: order_desc
+                in: query
+                schema:
+                    default: false
+                    description: If true, reverse the results order.
+                    title: Order Desc
+                    type: boolean
+                required: false
+                description: If true, reverse the results order.
+            responses:
+                '200':
+                    description: Proposals
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/PaginatedProposalsSchema'
+            security:
+            -   X-Api-Key: []
+    /registry/v1/proposal/{proposal_id}:
+        get:
+            summary: Get proposal
+            operationId: get_proposal.get
+            description: Get an existing proposal by id. Note that each merchant may
+                only access proposals lodged by the same merchant. Also note that
+                supplementary information is only included for proposals that have
+                not yet been accepted, declined or withdrawn.
+            tags:
+            - Business Registration
+            parameters:
+            -   name: proposal_id
+                in: path
+                required: true
+                schema:
+                    type: string
+                description: The id of an existing proposal.
+            responses:
+                '200':
+                    description: Proposal
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ProposalSchema'
+                '404':
+                    description: Proposal not found
+        delete:
+            summary: Withdraw proposal
+            operationId: withdraw_proposal.delete
+            description: Withdraw an existing proposal by id. Withdrawals will only
+                be accepted for proposals with a status of `IN_REVIEW`. Withdrawal
+                will not delete the proposal record but will instead update its status
+                to `WITHDRAWN` after which no further updates will be possible. Withdrawal
+                attempts will result in a `409` response if the proposal has already
+                been approved or declined. Subsequent attempts to withdraw the same
+                proposal will not prompt any action, and will result in a `200` status.
+                Note that each merchant may only withdraw proposals lodged by that
+                same merchant.
+            tags:
+            - Business Registration
+            parameters:
+            -   name: proposal_id
+                in: path
+                required: true
+                schema:
+                    type: string
+                description: The id of an existing proposal.
+            responses:
+                '200':
+                    description: Proposal
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ProposalSchema'
+                '404':
+                    description: Proposal not found
+                '409':
+                    description: Proposal is not in a suitable state for withdrawals
+    /registry/v1/proposal/{proposal_id}/submission:
+        post:
+            summary: Submit proposal
+            operationId: submit_proposal.post
+            description: Submit an existing proposal for review, by id. Submissions
+                will only be accepted for proposals with a status of `DRAFT`. Submission
+                attempts will result in a `200` response but take no action if the
+                proposal has already progressed beyond `DRAFT`.
+            tags:
+            - Business Registration
+            parameters:
+            -   name: proposal_id
+                in: path
+                required: true
+                schema:
+                    type: string
+                description: The id of an existing proposal.
+            responses:
+                '200':
+                    description: Proposal
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/VerificationInitiationResponseSchema'
+                '404':
+                    description: Proposal not found
+                '409':
+                    description: Proposal is not in a suitable state for submission
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/VerificationConfigurationSchema'
+                required: false
+    /registry/v1/business:
+        get:
+            summary: Get businesses
+            operationId: get_all_businesses.get
+            description: Get all matching businesses that have previously been enrolled
+                with Two via completed proposals. At least one search parameter must
+                be provided. Note that each merchant may only access businesses referred
+                to by accepted proposals lodged by the same merchant.
+            tags:
+            - Business Registration
+            parameters:
+            -   name: page
+                in: query
+                schema:
+                    anyOf:
+                    -   minimum: 0
+                        type: integer
+                    -   type: 'null'
+                    default: null
+                    description: The requested page number, 1-based.
+                    title: Page
+                required: false
+                description: The requested page number, 1-based.
+            -   name: limit
+                in: query
+                schema:
+                    anyOf:
+                    -   minimum: 0
+                        type: integer
+                    -   type: 'null'
+                    default: null
+                    description: The maximum number of items on a single page, ie
+                        the page size.
+                    title: Limit
+                required: false
+                description: The maximum number of items on a single page, ie the
+                    page size.
+            -   name: business_type
+                in: query
+                schema:
+                    anyOf:
+                    -   $ref: '#/components/schemas/BusinessTypeEnum'
+                    -   type: 'null'
+                    default: null
+                required: false
+                description: ''
+            -   name: country_code
+                in: query
+                schema:
+                    anyOf:
+                    -   $ref: '#/components/schemas/CountryCodeEnum'
+                    -   type: 'null'
+                    default: null
+                required: false
+                description: ''
+            -   name: trading_name
+                in: query
+                schema:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    description: Case-insensitive partial match.
+                    title: Trading Name
+                required: false
+                description: Case-insensitive partial match.
+            -   name: email
+                in: query
+                schema:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    description: Exact match only.
+                    title: Email
+                required: false
+                description: Exact match only.
+            -   name: phone
+                in: query
+                schema:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    description: Exact match only.
+                    title: Phone
+                required: false
+                description: Exact match only.
+            -   name: organization_number
+                in: query
+                schema:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    description: Exact match only.
+                    title: Organization Number
+                required: false
+                description: Exact match only.
+            -   name: order_by
+                in: query
+                schema:
+                    $ref: '#/components/schemas/BusinessSearchOrderByEnum'
+                    default: date_created
+                    description: How to order the search results
+                required: false
+                description: How to order the search results
+            -   name: order_desc
+                in: query
+                schema:
+                    default: false
+                    description: If true, reverse the results order.
+                    title: Order Desc
+                    type: boolean
+                required: false
+                description: If true, reverse the results order.
+            responses:
+                '200':
+                    description: Matching businesses
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/PaginatedBusinessesSchema'
+                '400':
+                    description: Parameters are invalid.
+            security:
+            -   X-Api-Key: []
+    /registry/v1/business/{business_id}:
+        get:
+            summary: Get business
+            operationId: get_business.get
+            description: Get a business that has previously been enrolled with Two
+                via a completed proposal. Note that each merchant may only access
+                businesses referred to by accepted proposals lodged by the same merchant.
+            tags:
+            - Business Registration
+            parameters:
+            -   name: business_id
+                in: path
+                required: true
+                schema:
+                    type: string
+                description: The id of a business that was enrolled as the result
+                    of an accepted proposal.
+            responses:
+                '200':
+                    description: Business
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/BusinessSchema'
+                '404':
+                    description: Business not found
+            security:
+            -   X-Api-Key: []
+    /registry/v1/delegation:
+        get:
+            summary: Check validity of a browser delegation token
+            operationId: get_delegation.get
+            description: Checks the validity of a browser delegation token, returning
+                the token data if valid.
+            tags:
+            - Business Registration
+            parameters: []
+            responses:
+                '200':
+                    description: Delegated authority token data in the response body
+                '401':
+                    description: Invalid request, for instance if provided Two-Delegated-Authority-Token
+                        has expired
+        post:
+            summary: Create a browser delegation token
+            operationId: create_delegation.post
+            description: Create a token for use within a buyer's browser. The token
+                is returned as a response header called `Two-Delegated-Authority-Token`.
+                To use the token, browser-side code should simply add the header to
+                the relevant requests. The token will grant access for 1 hour, for
+                the user's browser to impersonate the merchant for the operations
+                associated with each role specified in the body of this request. No
+                other operations will be possible.
+            tags:
+            - Business Registration
+            parameters: []
+            responses:
+                '200':
+                    description: Delegated authority token created and returned in
+                        response header named Two-Delegated-Authority-Token
+                '400':
+                    description: Invalid request, for instance no roles specified.
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/DelegatedAuthorityRequestSchema'
+    /registry/v1/proposal/returning-buyer/verification:
+        post:
+            summary: Start returning buyer verification
+            operationId: returning_buyer_start_verification_handler.post
+            description: Check if a business is already registered with the provided
+                email address. If found, initiate email verification by sending a
+                verification code to that address. Use this endpoint to identify returning
+                buyers before creating a new proposal. If a 404 is returned, no existing
+                registration was found and you should proceed with proposal creation
+                for a new buyer. Requires a delegation token with `verify_returning_buyer`
+                permission.
+            tags:
+            - Business Registration
+            parameters: []
+            responses:
+                '201':
+                    description: Verification initiated. A verification code has been
+                        sent to the email address.
+                '400':
+                    description: Invalid request.
+                '404':
+                    description: No existing business found for this email. Proceed
+                        with new registration.
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/EmailVerificationStartRequestSchema'
+        patch:
+            summary: Complete returning buyer verification
+            operationId: returning_buyer_complete_verification_handler.patch
+            description: Validate the verification code sent to the buyer's email.
+                If successful and a matching business is found, returns the buyer's
+                business details (company name, organization number, addresses, etc.).
+                Use the returned details to identify the buyer without requiring them
+                to re-register. Requires a delegation token with `verify_returning_buyer`
+                permission.
+            tags:
+            - Business Registration
+            parameters: []
+            responses:
+                '200':
+                    description: Verification successful. Returns the buyer's business
+                        details if a match was found, or an empty object if verification
+                        succeeded but no business details are available.
+                '400':
+                    description: Invalid verification code or request.
+                '429':
+                    description: Too many verification attempts. Please try again
+                        later.
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/EmailVerificationCompleteRequestSchema'
+components:
+    schemas:
+        CreateProposalSchema:
+            properties:
+                proposed_business:
+                    description: Details of the business that is being proposed for
+                        enrollment or update
+                    discriminator:
+                        mapping:
+                            GOVERNMENT_DEPARTMENT: '#/components/schemas/ProposedGovernmentDepartmentRequestSchema'
+                            SOLE_TRADER: '#/components/schemas/ProposedSoleTraderRequestSchema'
+                        propertyName: business_type
+                    oneOf:
+                    -   $ref: '#/components/schemas/ProposedSoleTraderRequestSchema'
+                    -   $ref: '#/components/schemas/ProposedGovernmentDepartmentRequestSchema'
+                    title: Proposed Business
+            required:
+            - proposed_business
+            title: CreateProposalSchema
+            type: object
+        AddressHistorySchema:
+            description: |-
+                The address history of a significant person associated with a business. Note that a separate building name/number
+                and street address are both required and neither may be empty.
+            properties:
+                apartment:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    description: Apartment, suite or room number
+                    title: Apartment
+                building:
+                    description: Building name or number
+                    title: Building
+                    type: string
+                street:
+                    description: Street name
+                    title: Street
+                    type: string
+                postal_code:
+                    title: Postal Code
+                    type: string
+                city:
+                    title: City
+                    type: string
+                region:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    title: Region
+                country_code:
+                    $ref: '#/components/schemas/CountryCodeEnum'
+                date_from:
+                    format: date
+                    title: Date From
+                    type: string
+                date_until:
+                    anyOf:
+                    -   format: date
+                        type: string
+                    -   type: 'null'
+                    default: null
+                    title: Date Until
+            required:
+            - building
+            - street
+            - postal_code
+            - city
+            - country_code
+            - date_from
+            title: AddressHistorySchema
+            type: object
+        BusinessAddressSchema:
+            description: |-
+                A trading address associated with a business. Note that a separate building name/number
+                and street address are both required and neither may be empty.
+            properties:
+                apartment:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    description: Apartment, suite or room number
+                    title: Apartment
+                building:
+                    description: Building name or number
+                    title: Building
+                    type: string
+                street:
+                    description: Street name
+                    title: Street
+                    type: string
+                postal_code:
+                    title: Postal Code
+                    type: string
+                city:
+                    title: City
+                    type: string
+                region:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    title: Region
+                country_code:
+                    $ref: '#/components/schemas/CountryCodeEnum'
+            required:
+            - building
+            - street
+            - postal_code
+            - city
+            - country_code
+            title: BusinessAddressSchema
+            type: object
+        ContactDetailsSchema:
+            description: Contact details for a person associated with a business.
+            properties:
+                title:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    title: Title
+                first_name:
+                    title: First Name
+                    type: string
+                middle_names:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    title: Middle Names
+                last_name:
+                    title: Last Name
+                    type: string
+                email:
+                    anyOf:
+                    -   format: email
+                        type: string
+                    -   type: 'null'
+                    default: null
+                    title: Email
+                phone:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    title: Phone
+            required:
+            - first_name
+            - last_name
+            title: ContactDetailsSchema
+            type: object
+        CountryCodeEnum:
+            enum:
+            - AD
+            - AE
+            - AL
+            - AM
+            - AO
+            - AR
+            - AT
+            - AU
+            - AZ
+            - BA
+            - BB
+            - BD
+            - BE
+            - BF
+            - BG
+            - BH
+            - BI
+            - BJ
+            - BN
+            - BO
+            - BR
+            - BS
+            - BW
+            - CA
+            - CG
+            - CH
+            - CL
+            - CM
+            - CO
+            - CR
+            - CY
+            - CZ
+            - DE
+            - DJ
+            - DK
+            - DO
+            - DZ
+            - EC
+            - EE
+            - EG
+            - ES
+            - ET
+            - FI
+            - FJ
+            - FR
+            - GA
+            - GB
+            - GE
+            - GH
+            - GN
+            - GQ
+            - GR
+            - GT
+            - GY
+            - HN
+            - HR
+            - HT
+            - HU
+            - ID
+            - IE
+            - IL
+            - IN
+            - IQ
+            - IS
+            - IT
+            - JM
+            - JO
+            - JP
+            - KE
+            - KG
+            - KH
+            - KR
+            - KW
+            - KZ
+            - LA
+            - LB
+            - LI
+            - LK
+            - LT
+            - LU
+            - LV
+            - LR
+            - MA
+            - MC
+            - MD
+            - ME
+            - MG
+            - MK
+            - MN
+            - MR
+            - MT
+            - MU
+            - MV
+            - MW
+            - MX
+            - MY
+            - MZ
+            - NA
+            - NE
+            - NG
+            - NL
+            - 'NO'
+            - NP
+            - NZ
+            - OM
+            - PA
+            - PE
+            - PG
+            - PH
+            - PK
+            - PL
+            - PT
+            - PY
+            - QA
+            - RO
+            - RS
+            - RW
+            - SA
+            - SE
+            - SG
+            - SI
+            - SK
+            - SL
+            - SN
+            - SR
+            - SV
+            - SZ
+            - TD
+            - TG
+            - TH
+            - TJ
+            - TM
+            - TN
+            - TR
+            - TT
+            - TZ
+            - UA
+            - UG
+            - US
+            - UY
+            - UZ
+            - VN
+            - ZA
+            - ZM
+            title: CountryCodeEnum
+            type: string
+        NationalIdentityNumberSchema:
+            properties:
+                identity_number_type:
+                    $ref: '#/components/schemas/NationalIdentityNumberTypeEnum'
+                    description: The type of identity number represented by this record.
+                identity_number:
+                    description: The identity number.
+                    title: Identity Number
+                    type: string
+            required:
+            - identity_number_type
+            - identity_number
+            title: NationalIdentityNumberSchema
+            type: object
+        NationalIdentityNumberTypeEnum:
+            enum:
+            - SOCIAL_SECURITY_NUMBER
+            - EMPLOYER_IDENTIFICATION_NUMBER
+            - PASSPORT_NUMBER
+            - DRIVING_LICENCE_NUMBER
+            title: NationalIdentityNumberTypeEnum
+            type: string
+        PersonalDetailsSchema:
+            description: Detailed personal information about a significant person
+                associated with a business.
+            properties:
+                title:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    title: Title
+                first_name:
+                    title: First Name
+                    type: string
+                middle_names:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    title: Middle Names
+                last_name:
+                    title: Last Name
+                    type: string
+                email:
+                    anyOf:
+                    -   format: email
+                        type: string
+                    -   type: 'null'
+                    default: null
+                    title: Email
+                phone:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    title: Phone
+                date_of_birth:
+                    description: This person's date of birth.
+                    format: date
+                    title: Date Of Birth
+                    type: string
+                address_history:
+                    description: This person's residential address history. The current
+                        address must be provided at index 0 and must omit date_until.
+                        Previous addresses are optional; if provided, they must be
+                        presented in order, most recent at index 1, with date_from
+                        of one matching date_until of the next.
+                    items:
+                        $ref: '#/components/schemas/AddressHistorySchema'
+                    title: Address History
+                    type: array
+                national_identity_numbers:
+                    anyOf:
+                    -   items:
+                            $ref: '#/components/schemas/NationalIdentityNumberSchema'
+                        type: array
+                    -   type: 'null'
+                    default: null
+                    description: Identity numbers associated with this person.
+                    title: National Identity Numbers
+            required:
+            - first_name
+            - last_name
+            - date_of_birth
+            - address_history
+            title: PersonalDetailsSchema
+            type: object
+        ProposedGovernmentDepartmentRequestSchema:
+            properties:
+                business_type:
+                    const: GOVERNMENT_DEPARTMENT
+                    default: GOVERNMENT_DEPARTMENT
+                    title: Business Type
+                    type: string
+                country_code:
+                    $ref: '#/components/schemas/CountryCodeEnum'
+                    description: The country in which this business exists.
+                trading_name:
+                    description: The name by which this business is known to its customers
+                        and suppliers.
+                    title: Trading Name
+                    type: string
+                website:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    description: The business's website, if available.
+                    title: Website
+                email:
+                    description: The business's contact email address.
+                    title: Email
+                    type: string
+                phone:
+                    description: The business's contact phone number.
+                    title: Phone
+                    type: string
+                tax_number:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    description: The business's tax registration number, if available.
+                    title: Tax Number
+                business_address:
+                    $ref: '#/components/schemas/BusinessAddressSchema'
+                    description: The business's postal address.
+                contacts:
+                    description: Contacts within the relevant department. At least
+                        one is required.
+                    items:
+                        $ref: '#/components/schemas/ContactDetailsSchema'
+                    title: Contacts
+                    type: array
+            required:
+            - country_code
+            - trading_name
+            - email
+            - phone
+            - business_address
+            - contacts
+            title: ProposedGovernmentDepartmentRequestSchema
+            type: object
+        ProposedSoleTraderRequestSchema:
+            properties:
+                business_type:
+                    const: SOLE_TRADER
+                    default: SOLE_TRADER
+                    title: Business Type
+                    type: string
+                country_code:
+                    $ref: '#/components/schemas/CountryCodeEnum'
+                    description: The country in which this business exists.
+                trading_name:
+                    description: The name by which this business is known to its customers
+                        and suppliers.
+                    title: Trading Name
+                    type: string
+                website:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    description: The business's website, if available.
+                    title: Website
+                email:
+                    description: The business's contact email address.
+                    title: Email
+                    type: string
+                phone:
+                    description: The business's contact phone number.
+                    title: Phone
+                    type: string
+                tax_number:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    description: The business's tax registration number, if available.
+                    title: Tax Number
+                business_address:
+                    $ref: '#/components/schemas/BusinessAddressSchema'
+                    description: The business's postal address.
+                proprietor_details:
+                    $ref: '#/components/schemas/PersonalDetailsSchema'
+                    description: Details of the proprietor of this business. This
+                        is required for submissions, but may be excluded from responses
+                        in some cases.
+            required:
+            - country_code
+            - trading_name
+            - email
+            - phone
+            - business_address
+            - proprietor_details
+            title: ProposedSoleTraderRequestSchema
+            type: object
+        IdempotencyHeader:
+            additionalProperties: true
+            properties:
+                Idempotency-Key:
+                    anyOf:
+                    -   maxLength: 100
+                        type: string
+                    -   type: 'null'
+                    default: null
+                    title: Idempotency-Key
+            title: IdempotencyHeader
+            type: object
+        ProposalSchema:
+            properties:
+                id:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    description: A unique id by which Two will refer to this proposal.
+                        Use this value on subsequent calls to GET the proposal object.
+                    title: Id
+                proposed_business:
+                    description: Details of the business that is being proposed for
+                        enrollment or update
+                    discriminator:
+                        mapping:
+                            GOVERNMENT_DEPARTMENT: '#/components/schemas/ProposedGovernmentDepartmentSchema'
+                            SOLE_TRADER: '#/components/schemas/ProposedSoleTraderSchema'
+                        propertyName: business_type
+                    oneOf:
+                    -   $ref: '#/components/schemas/ProposedSoleTraderSchema'
+                    -   $ref: '#/components/schemas/ProposedGovernmentDepartmentSchema'
+                    title: Proposed Business
+                enrolled_business:
+                    anyOf:
+                    -   $ref: '#/components/schemas/BusinessSchema'
+                    -   type: 'null'
+                    default: null
+                    description: The business to which this proposal relates. This
+                        will be populated once this proposal, or anyother proposal
+                        which relates to the same business, has been accepted.
+                status:
+                    $ref: '#/components/schemas/ProposalStatusEnum'
+                    description: The status of this proposal. Read-only.
+            required:
+            - proposed_business
+            - status
+            title: ProposalSchema
+            type: object
+        BusinessSchema:
+            description: |-
+                A business that has been created as a result of an accepted proposal. Note that all business types are represented
+                using the same schema; further details required during the proposal process (e.g. proprietor name/DOB, address
+                history, contact details) are excluded from this representation of the record.
+            properties:
+                business_type:
+                    $ref: '#/components/schemas/BusinessTypeEnum'
+                    description: The type of business represented by this record.
+                country_code:
+                    $ref: '#/components/schemas/CountryCodeEnum'
+                    description: The country in which this business exists.
+                trading_name:
+                    description: The name by which this business is known to its customers
+                        and suppliers.
+                    title: Trading Name
+                    type: string
+                website:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    description: The business's website, if available.
+                    title: Website
+                email:
+                    description: The business's contact email address.
+                    title: Email
+                    type: string
+                phone:
+                    description: The business's contact phone number.
+                    title: Phone
+                    type: string
+                tax_number:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    description: The business's tax registration number, if available.
+                    title: Tax Number
+                business_address:
+                    $ref: '#/components/schemas/BusinessAddressSchema'
+                    description: The business's postal address.
+                id:
+                    description: The unique Two internal id for this business.
+                    title: Id
+                    type: string
+                organization_number:
+                    description: The synthetic organization number, generated by Two.
+                    title: Organization Number
+                    type: string
+            required:
+            - business_type
+            - country_code
+            - trading_name
+            - email
+            - phone
+            - business_address
+            - id
+            - organization_number
+            title: BusinessSchema
+            type: object
+        BusinessTypeEnum:
+            description: Types of businesses that may be the subject of a proposal
+            enum:
+            - SOLE_TRADER
+            - GOVERNMENT_DEPARTMENT
+            title: BusinessTypeEnum
+            type: string
+        ProposalStatusEnum:
+            description: The status of a proposal to recognize, or to update the details
+                of, a business.
+            enum:
+            - DRAFT
+            - UNVERIFIED
+            - SUBMITTED
+            - REVIEWING
+            - ACCEPTED
+            - DECLINED
+            - WITHDRAWN
+            title: ProposalStatusEnum
+            type: string
+        ProposedGovernmentDepartmentSchema:
+            properties:
+                business_type:
+                    const: GOVERNMENT_DEPARTMENT
+                    default: GOVERNMENT_DEPARTMENT
+                    title: Business Type
+                    type: string
+                country_code:
+                    $ref: '#/components/schemas/CountryCodeEnum'
+                    description: The country in which this business exists.
+                trading_name:
+                    description: The name by which this business is known to its customers
+                        and suppliers.
+                    title: Trading Name
+                    type: string
+                website:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    description: The business's website, if available.
+                    title: Website
+                email:
+                    description: The business's contact email address.
+                    title: Email
+                    type: string
+                phone:
+                    description: The business's contact phone number.
+                    title: Phone
+                    type: string
+                tax_number:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    description: The business's tax registration number, if available.
+                    title: Tax Number
+                business_address:
+                    $ref: '#/components/schemas/BusinessAddressSchema'
+                    description: The business's postal address.
+                contacts:
+                    anyOf:
+                    -   items:
+                            $ref: '#/components/schemas/ContactDetailsSchema'
+                        type: array
+                    -   type: 'null'
+                    default: null
+                    description: Contacts within the relevant department. At least
+                        one is required.
+                    title: Contacts
+            required:
+            - country_code
+            - trading_name
+            - email
+            - phone
+            - business_address
+            title: ProposedGovernmentDepartmentSchema
+            type: object
+        ProposedSoleTraderSchema:
+            properties:
+                business_type:
+                    const: SOLE_TRADER
+                    default: SOLE_TRADER
+                    title: Business Type
+                    type: string
+                country_code:
+                    $ref: '#/components/schemas/CountryCodeEnum'
+                    description: The country in which this business exists.
+                trading_name:
+                    description: The name by which this business is known to its customers
+                        and suppliers.
+                    title: Trading Name
+                    type: string
+                website:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    description: The business's website, if available.
+                    title: Website
+                email:
+                    description: The business's contact email address.
+                    title: Email
+                    type: string
+                phone:
+                    description: The business's contact phone number.
+                    title: Phone
+                    type: string
+                tax_number:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    description: The business's tax registration number, if available.
+                    title: Tax Number
+                business_address:
+                    $ref: '#/components/schemas/BusinessAddressSchema'
+                    description: The business's postal address.
+                proprietor_details:
+                    anyOf:
+                    -   $ref: '#/components/schemas/PersonalDetailsSchema'
+                    -   type: 'null'
+                    default: null
+                    description: Details of the proprietor of this business. This
+                        is required for submissions, but may be excluded from responses
+                        in some cases.
+            required:
+            - country_code
+            - trading_name
+            - email
+            - phone
+            - business_address
+            title: ProposedSoleTraderSchema
+            type: object
+        PagedProposalSearchParameters:
+            properties:
+                page:
+                    anyOf:
+                    -   minimum: 0
+                        type: integer
+                    -   type: 'null'
+                    default: null
+                    description: The requested page number, 1-based.
+                    title: Page
+                limit:
+                    anyOf:
+                    -   minimum: 0
+                        type: integer
+                    -   type: 'null'
+                    default: null
+                    description: The maximum number of items on a single page, ie
+                        the page size.
+                    title: Limit
+                business_type:
+                    anyOf:
+                    -   $ref: '#/components/schemas/BusinessTypeEnum'
+                    -   type: 'null'
+                    default: null
+                country_code:
+                    anyOf:
+                    -   $ref: '#/components/schemas/CountryCodeEnum'
+                    -   type: 'null'
+                    default: null
+                trading_name:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    description: Case-insensitive partial match.
+                    title: Trading Name
+                email:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    description: Exact match only.
+                    title: Email
+                phone:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    description: Exact match only.
+                    title: Phone
+                status:
+                    anyOf:
+                    -   $ref: '#/components/schemas/ProposalStatusEnum'
+                    -   type: 'null'
+                    default: null
+                    description: 'Optional single-value status filter. Merchant API
+                        supports: `DRAFT`, `UNVERIFIED`, `SUBMITTED`, `REVIEWING`,
+                        `ACCEPTED`, `DECLINED`, `WITHDRAWN`. Multiple statuses in
+                        one request are not supported. If omitted, merchant API returns
+                        proposals that currently require action (`DRAFT` proposals
+                        for the authenticated merchant).'
+                order_by:
+                    $ref: '#/components/schemas/ProposalSearchOrderByEnum'
+                    default: date_created
+                    description: How to order the search results
+                order_desc:
+                    default: false
+                    description: If true, reverse the results order.
+                    title: Order Desc
+                    type: boolean
+            title: PagedProposalSearchParameters
+            type: object
+        ProposalSearchOrderByEnum:
+            enum:
+            - status
+            - trading_name
+            - date_created
+            - date_updated
+            title: ProposalSearchOrderByEnum
+            type: string
+        PaginatedProposalsSchema:
+            description: A paginated set of ProposalSchema instances.
+            properties:
+                items:
+                    items:
+                        $ref: '#/components/schemas/ProposalSchema'
+                    title: Items
+                    type: array
+                page:
+                    $ref: '#/components/schemas/PageSchema'
+            required:
+            - items
+            - page
+            title: PaginatedProposalsSchema
+            type: object
+        PageSchema:
+            description: |-
+                items: total items in query
+                current: current page number, 1-based
+                limit: items per page
+                pages: pages count
+            properties:
+                items:
+                    description: The total number of items available for retrieval,
+                        across all pages.
+                    minimum: 0
+                    title: Items
+                    type: integer
+                limit:
+                    anyOf:
+                    -   minimum: 0
+                        type: integer
+                    -   type: 'null'
+                    default: null
+                    description: The maximum number of items on a single page, ie
+                        the page size.
+                    title: Limit
+                current:
+                    anyOf:
+                    -   minimum: 0
+                        type: integer
+                    -   type: 'null'
+                    default: null
+                    description: The current page number, 1-based.
+                    title: Current
+                pages:
+                    anyOf:
+                    -   minimum: 0
+                        type: integer
+                    -   type: 'null'
+                    default: null
+                    description: How many pages are available for retrieval.
+                    title: Pages
+            required:
+            - items
+            title: PageSchema
+            type: object
+        VerificationConfigurationSchema:
+            properties:
+                initiation_method:
+                    default: REDIRECT
+                    description: How to direct the buyer to begin verification.
+                    enum:
+                    - EMAIL
+                    - REDIRECT
+                    title: Initiation Method
+                    type: string
+            title: VerificationConfigurationSchema
+            type: object
+        VerificationInitiationResponseSchema:
+            description: A union of all possible verification initiation confirmation
+                schemas.
+            discriminator:
+                mapping:
+                    EMAIL: '#/components/schemas/VerificationInitiatedViaEmailSchema'
+                    REDIRECT: '#/components/schemas/VerificationInitiatedViaRedirectSchema'
+                    SKIP: '#/components/schemas/VerificationSkippedSchema'
+                propertyName: initiation_method
+            oneOf:
+            -   $ref: '#/components/schemas/VerificationSkippedSchema'
+            -   $ref: '#/components/schemas/VerificationInitiatedViaEmailSchema'
+            -   $ref: '#/components/schemas/VerificationInitiatedViaRedirectSchema'
+            title: VerificationInitiationResponseSchema
+        VerificationInitiatedViaEmailSchema:
+            properties:
+                initiation_method:
+                    const: EMAIL
+                    default: EMAIL
+                    title: Initiation Method
+                    type: string
+                proposal_id:
+                    default: The id of the proposal for which verification has been
+                        initiated.
+                    title: Proposal Id
+                    type: string
+            title: VerificationInitiatedViaEmailSchema
+            type: object
+        VerificationInitiatedViaRedirectSchema:
+            properties:
+                initiation_method:
+                    const: REDIRECT
+                    default: REDIRECT
+                    title: Initiation Method
+                    type: string
+                proposal_id:
+                    default: The id of the proposal for which verification has been
+                        initiated.
+                    title: Proposal Id
+                    type: string
+                redirect_url:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    description: The URL to redirect the buyer to for verification.
+                    title: Redirect Url
+            title: VerificationInitiatedViaRedirectSchema
+            type: object
+        VerificationSkippedSchema:
+            properties:
+                initiation_method:
+                    const: SKIP
+                    default: SKIP
+                    title: Initiation Method
+                    type: string
+                proposal_id:
+                    default: The id of the proposal for which verification has been
+                        initiated.
+                    title: Proposal Id
+                    type: string
+            title: VerificationSkippedSchema
+            type: object
+        PagedBusinessSearchParameters:
+            properties:
+                page:
+                    anyOf:
+                    -   minimum: 0
+                        type: integer
+                    -   type: 'null'
+                    default: null
+                    description: The requested page number, 1-based.
+                    title: Page
+                limit:
+                    anyOf:
+                    -   minimum: 0
+                        type: integer
+                    -   type: 'null'
+                    default: null
+                    description: The maximum number of items on a single page, ie
+                        the page size.
+                    title: Limit
+                business_type:
+                    anyOf:
+                    -   $ref: '#/components/schemas/BusinessTypeEnum'
+                    -   type: 'null'
+                    default: null
+                country_code:
+                    anyOf:
+                    -   $ref: '#/components/schemas/CountryCodeEnum'
+                    -   type: 'null'
+                    default: null
+                trading_name:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    description: Case-insensitive partial match.
+                    title: Trading Name
+                email:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    description: Exact match only.
+                    title: Email
+                phone:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    description: Exact match only.
+                    title: Phone
+                organization_number:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    description: Exact match only.
+                    title: Organization Number
+                order_by:
+                    $ref: '#/components/schemas/BusinessSearchOrderByEnum'
+                    default: date_created
+                    description: How to order the search results
+                order_desc:
+                    default: false
+                    description: If true, reverse the results order.
+                    title: Order Desc
+                    type: boolean
+            title: PagedBusinessSearchParameters
+            type: object
+        BusinessSearchOrderByEnum:
+            enum:
+            - organization_number
+            - trading_name
+            - date_created
+            - date_updated
+            title: BusinessSearchOrderByEnum
+            type: string
+        PaginatedBusinessesSchema:
+            description: A paginated set of BusinessSchema instances.
+            properties:
+                items:
+                    items:
+                        $ref: '#/components/schemas/BusinessSchema'
+                    title: Items
+                    type: array
+                page:
+                    $ref: '#/components/schemas/PageSchema'
+            required:
+            - items
+            - page
+            title: PaginatedBusinessesSchema
+            type: object
+        DelegatedAuthorityRequestSchema:
+            properties:
+                verify_returning_buyer:
+                    default: true
+                    description: This role allows the token bearer to initiate email
+                        verification to identify returning buyers.
+                    title: Verify Returning Buyer
+                    type: boolean
+                create_proposal:
+                    default: true
+                    description: This role allows the token bearer to create new proposals.
+                    title: Create Proposal
+                    type: boolean
+            title: DelegatedAuthorityRequestSchema
+            type: object
+        EmailVerificationStartRequestSchema:
+            properties:
+                verification_type:
+                    const: EMAIL
+                    default: EMAIL
+                    title: Verification Type
+                    type: string
+                email:
+                    format: email
+                    title: Email
+                    type: string
+            required:
+            - email
+            title: EmailVerificationStartRequestSchema
+            type: object
+        EmailVerificationCompleteRequestSchema:
+            properties:
+                verification_type:
+                    const: EMAIL
+                    default: EMAIL
+                    title: Verification Type
+                    type: string
+                verification_id:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    title: Verification Id
+                code:
+                    title: Code
+                    type: string
+                context:
+                    anyOf:
+                    -   $ref: '#/components/schemas/VerificationContextEnum'
+                    -   type: 'null'
+                    default: null
+                email:
+                    anyOf:
+                    -   format: email
+                        type: string
+                    -   type: 'null'
+                    default: null
+                    title: Email
+            required:
+            - code
+            title: EmailVerificationCompleteRequestSchema
+            type: object
+        VerificationContextEnum:
+            enum:
+            - MERCHANT_PORTAL
+            - MERCHANT_PORTAL_USER
+            - MERCHANT_ONBOARDING
+            - BUYER_PORTAL
+            - BUSINESS_REGISTRATION
+            - ORDER
+            - MERCHANT_CUSTOMER
+            - MERCHANT_CUSTOMER_USER
+            - WORKFLOW
+            title: VerificationContextEnum
+            type: string
+    securitySchemes:
+        X-Api-Key:
+            type: apiKey
+            description: |-
+                For instructions on how to obtain API keys, visit [this page](/docs/guides/getting-api-keys-page/).
+                You will obtain two different keys, an initial one for testing in our sandbox environment and once ready, for production.
+                Your API keys enables others to act on your behalf if they are able to obtain them, so make sure to keep them safe.
+                Your API key is not to be shared with anyone, including in your version control system, client-side code, in public chatrooms and so on.
+                The API key is applied in the request header. For example:
+                ```
+                GET /something
+                X-Api-Key: secret_test_aabbccddeeff0123456789
+                ```
+
+                API Keys have the following structure: `secret_<env>_<key>` where:
+                - `env` is determined by the environment (`prod` for production, `test` for test environments)
+                - `key` is a random, URL-safe, 64-bit encoded text string containing 32 random bytes.
+            name: X-Api-Key
+            in: header
+servers:
+-   url: https://api.sandbox.two.inc
+    description: Testing
+-   url: https://api.two.inc
+    description: Production
+security: []

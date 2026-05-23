@@ -1,0 +1,2155 @@
+openapi: 3.1.0
+info:
+    title: Trade Account API V2 (deprecated)
+    version: '2.0'
+    description: |-
+        **Deprecated: please use [Trade Account API V3](/docs/api/trade-account-v3/trade-account-api-v-3-preview/) instead.**
+
+        This API allows you to onboard your business customers to your own product and to the Two "Buy Now Pay Later" product.
+
+        Specifically:
+
+        - Enable 1-click checkout with Two
+        - Approve additional users to place orders on behalf of your business customers
+        - Access insights and enriched data on your business customers
+        - Receive validation that Two believes it is an accurate and valid representative of the business
+
+        Note: Merchant ID is denoted as `mid`. This can be obtained alongside the API key from the [merchant portal](https://portal.two.inc/merchant/integration).
+
+        ### Step 1: Create a B2B business customer
+        - Create a new business customer using the `POST /v2/merchant/<mid>/customer` endpoint.
+
+        ### Step 2: Create users for your business customers.
+
+        - The employees who place orders on behalf of your business customer (their employer), can be set up for purchasing through `POST /v2/merchant/<mid>/customer/<cid>/user`.
+        - Upon successfully creating a customer user, onboarding is completed. You may optionally redirect the user to the `user_verification_url` for them to verify their account. Verification of the customer user will allow one-click purchases for the customer user.
+        - Remember to keep contact info up-to-date, like email and phone number, through `PUT /v2/merchant/<mid>/customer/<cid>/user/<uid>`
+
+        Note: Two reserves the right to add extra verification steps for certain orders.
+
+
+        ## Environments
+
+        ### Testing
+
+        [https://api.sandbox.two.inc](https://api.sandbox.two.inc/v1/health)
+
+        Note: Read about our [sandbox environment specific behaviour](/docs/guides/sandbox-behaviour-page/).
+
+        ### Production
+
+        [https://api.two.inc](https://api.two.inc/v1/health)
+tags:
+-   name: Merchant Customer Onboarding
+-   name: Merchant Customer User Onboarding
+paths:
+    /v2/merchant/{mid}/customer:
+        post:
+            summary: Create customer record
+            operationId: create_merchant_customer_v2_handler.post
+            description: ''
+            tags:
+            - Merchant Customer Onboarding
+            parameters:
+            -   name: mid
+                in: path
+                required: true
+                schema:
+                    type: string
+                description: Merchant ID
+            responses:
+                default:
+                    description: Error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorResponse'
+                '201':
+                    description: Created
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/CustomerResponseSchemaV2'
+            security:
+            -   X-Api-Key: []
+            deprecated: true
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/CustomerCreateRequestSchemaV2'
+        get:
+            summary: Get customer list
+            operationId: get_merchant_customers_v2_handler.get
+            description: Fetch a list of customers. Use ?limit or ?page_cursor parameter
+                for cursor-based pagination.
+            tags:
+            - Merchant Customer Onboarding
+            parameters:
+            -   name: mid
+                in: path
+                required: true
+                schema:
+                    type: string
+                description: Merchant ID
+            -   name: limit
+                in: query
+                schema:
+                    anyOf:
+                    -   minimum: 0
+                        type: integer
+                    -   type: 'null'
+                    default: null
+                    description: The maximum number of items on a single page, ie
+                        the page size.
+                    title: Limit
+                required: false
+                description: The maximum number of items on a single page, ie the
+                    page size.
+            -   name: page_cursor
+                in: query
+                schema:
+                    anyOf:
+                    -   minLength: 1
+                        type: string
+                    -   type: 'null'
+                    default: null
+                    description: The requested page, base64str encoded.
+                    title: Page Cursor
+                required: false
+                description: The requested page, base64str encoded.
+            responses:
+                default:
+                    description: Error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorResponse'
+                '200':
+                    description: Customer list - returns CustomerResponseListSchemaV2
+                        by default, or CustomerResponseListPaginatedSchemaV2 when
+                        limit parameter is provided
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/CustomerResponseListUnionSchemaV2'
+            security:
+            -   X-Api-Key: []
+            deprecated: true
+    /v2/merchant/{mid}/customer/{cid}:
+        put:
+            summary: Replace customer record
+            operationId: replace_merchant_customer_v2_handler.put
+            description: ''
+            tags:
+            - Merchant Customer Onboarding
+            parameters:
+            -   name: mid
+                in: path
+                required: true
+                schema:
+                    type: string
+                description: Merchant ID
+            -   name: cid
+                in: path
+                required: true
+                schema:
+                    type: string
+                description: Customer ID
+            responses:
+                default:
+                    description: Error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorResponse'
+                '200':
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/CustomerResponseSchemaV2'
+            security:
+            -   X-Api-Key: []
+            deprecated: true
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/CustomerReplaceRequestSchemaV2'
+        patch:
+            summary: Patch customer record
+            operationId: update_merchant_customer_v2_handler.patch
+            description: ''
+            tags:
+            - Merchant Customer Onboarding
+            parameters:
+            -   name: mid
+                in: path
+                required: true
+                schema:
+                    type: string
+                description: Merchant ID
+            -   name: cid
+                in: path
+                required: true
+                schema:
+                    type: string
+                description: Customer ID
+            responses:
+                default:
+                    description: Error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorResponse'
+                '200':
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/CustomerResponseSchemaV2'
+            security:
+            -   X-Api-Key: []
+            deprecated: true
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/CustomerUpdateRequestSchema'
+        get:
+            summary: Get customer record
+            operationId: get_merchant_customer_v2_handler.get
+            description: ''
+            tags:
+            - Merchant Customer Onboarding
+            parameters:
+            -   name: mid
+                in: path
+                required: true
+                schema:
+                    type: string
+                description: Merchant ID
+            -   name: cid
+                in: path
+                required: true
+                schema:
+                    type: string
+                description: Customer ID
+            responses:
+                default:
+                    description: Error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorResponse'
+                '200':
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/CustomerResponseSchemaV2'
+            security:
+            -   X-Api-Key: []
+            deprecated: true
+    /v2/merchant/{mid}/customer_lookup/{merchant_customer_id}:
+        get:
+            summary: Get customer from external customer ID
+            operationId: get_merchant_customer_lookup_v2_handler.get
+            description: ''
+            tags:
+            - Merchant Customer Onboarding
+            parameters:
+            -   name: mid
+                in: path
+                required: true
+                schema:
+                    type: string
+                description: Merchant ID
+            -   name: merchant_customer_id
+                in: path
+                required: true
+                schema:
+                    type: string
+                description: External customer ID
+            responses:
+                default:
+                    description: Error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorResponse'
+                '302':
+                    description: Redirect to the GET customer endpoint (/v2/merchant/<mid>/customer/<cid>)
+            security:
+            -   X-Api-Key: []
+            deprecated: true
+    /v2/merchant/{mid}/customer/{cid}/user:
+        post:
+            summary: Create customer user record
+            operationId: create_merchant_customer_user_v2_handler.post
+            description: ''
+            tags:
+            - Merchant Customer User Onboarding
+            parameters:
+            -   name: mid
+                in: path
+                required: true
+                schema:
+                    type: string
+                description: Merchant ID
+            -   name: cid
+                in: path
+                required: true
+                schema:
+                    type: string
+                description: Customer ID
+            responses:
+                default:
+                    description: Error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorResponse'
+                '201':
+                    description: Created
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/CustomerUserResponseSchemaV2'
+            security:
+            -   X-Api-Key: []
+            deprecated: true
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/CustomerUserCreateRequestSchemaV2'
+        get:
+            summary: Get customer user list
+            operationId: get_merchant_customer_users_v2_handler.get
+            description: Fetch a list of users attached to the business customer account.
+                Use ?limit or ?page_cursor parameter for cursor-based pagination.
+            tags:
+            - Merchant Customer User Onboarding
+            parameters:
+            -   name: mid
+                in: path
+                required: true
+                schema:
+                    type: string
+                description: Merchant ID
+            -   name: cid
+                in: path
+                required: true
+                schema:
+                    type: string
+                description: Customer ID
+            -   name: limit
+                in: query
+                schema:
+                    anyOf:
+                    -   minimum: 0
+                        type: integer
+                    -   type: 'null'
+                    default: null
+                    description: The maximum number of items on a single page, ie
+                        the page size.
+                    title: Limit
+                required: false
+                description: The maximum number of items on a single page, ie the
+                    page size.
+            -   name: page_cursor
+                in: query
+                schema:
+                    anyOf:
+                    -   minLength: 1
+                        type: string
+                    -   type: 'null'
+                    default: null
+                    description: The requested page, base64str encoded.
+                    title: Page Cursor
+                required: false
+                description: The requested page, base64str encoded.
+            responses:
+                default:
+                    description: Error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorResponse'
+                '200':
+                    description: Customer user list - returns CustomerUserResponseListSchemaV2
+                        by default, or CustomerUserResponseListPaginatedSchemaV2 when
+                        limit parameter is provided
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/CustomerUserResponseListUnionSchemaV2'
+            security:
+            -   X-Api-Key: []
+            deprecated: true
+    /v2/merchant/{mid}/customer/{cid}/user/{uid}/verification:
+        post:
+            summary: Attach an existing verified verification to an existing merchant
+                customer user.
+            operationId: attach_merchant_customer_user_verification_v2_handler.post
+            description: ''
+            tags:
+            - Merchant Customer User Onboarding
+            parameters:
+            -   name: mid
+                in: path
+                required: true
+                schema:
+                    type: string
+                description: Merchant ID
+            -   name: cid
+                in: path
+                required: true
+                schema:
+                    type: string
+                description: Customer ID
+            -   name: uid
+                in: path
+                required: true
+                schema:
+                    type: string
+                description: User ID
+            responses:
+                default:
+                    description: Error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorResponse'
+                '200':
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/CustomerUserResponseSchemaV2'
+            security:
+            -   X-Api-Key: []
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/CustomerUserAttachVerificationRequestSchema'
+    /v2/merchant/{mid}/customer/{cid}/user/{uid}:
+        patch:
+            summary: Update a customer user record
+            operationId: update_merchant_customer_user_v2_handler.patch
+            description: ''
+            tags:
+            - Merchant Customer User Onboarding
+            parameters:
+            -   name: mid
+                in: path
+                required: true
+                schema:
+                    type: string
+                description: Merchant ID
+            -   name: cid
+                in: path
+                required: true
+                schema:
+                    type: string
+                description: Customer ID
+            -   name: uid
+                in: path
+                required: true
+                schema:
+                    type: string
+                description: User ID
+            responses:
+                default:
+                    description: Error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorResponse'
+                '200':
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/CustomerUserResponseSchemaV2'
+            security:
+            -   X-Api-Key: []
+            deprecated: true
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/CustomerUserUpdateRequestSchema'
+        put:
+            summary: Replace customer user record
+            operationId: replace_merchant_customer_user_v2_handler.put
+            description: ''
+            tags:
+            - Merchant Customer User Onboarding
+            parameters:
+            -   name: mid
+                in: path
+                required: true
+                schema:
+                    type: string
+                description: Merchant ID
+            -   name: cid
+                in: path
+                required: true
+                schema:
+                    type: string
+                description: Customer ID
+            -   name: uid
+                in: path
+                required: true
+                schema:
+                    type: string
+                description: User ID
+            responses:
+                default:
+                    description: Error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorResponse'
+                '200':
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/CustomerUserResponseSchemaV2'
+            security:
+            -   X-Api-Key: []
+            deprecated: true
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/CustomerUserReplaceRequestSchemaV2'
+        delete:
+            summary: Delete customer user record.
+            operationId: delete_merchant_customer_user_v2_handler.delete
+            description: ''
+            tags:
+            - Merchant Customer User Onboarding
+            parameters:
+            -   name: mid
+                in: path
+                required: true
+                schema:
+                    type: string
+                description: Merchant ID
+            -   name: cid
+                in: path
+                required: true
+                schema:
+                    type: string
+                description: Customer ID
+            -   name: uid
+                in: path
+                required: true
+                schema:
+                    type: string
+                description: User ID
+            responses:
+                default:
+                    description: Error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorResponse'
+                '204':
+                    description: No Content
+            security:
+            -   X-Api-Key: []
+            deprecated: true
+        get:
+            summary: Get customer user record
+            operationId: get_merchant_customer_user_v2_handler.get
+            description: ''
+            tags:
+            - Merchant Customer User Onboarding
+            parameters:
+            -   name: mid
+                in: path
+                required: true
+                schema:
+                    type: string
+                description: Merchant ID
+            -   name: cid
+                in: path
+                required: true
+                schema:
+                    type: string
+                description: Customer ID
+            -   name: uid
+                in: path
+                required: true
+                schema:
+                    type: string
+                description: User ID
+            responses:
+                default:
+                    description: Error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorResponse'
+                '200':
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/CustomerUserResponseSchemaV2'
+            security:
+            -   X-Api-Key: []
+            deprecated: true
+    /v2/merchant/{mid}/customer/{cid}/user/{uid}/notify:
+        post:
+            summary: Notify customer user
+            operationId: notify_onboarding_handler.post
+            description: Send a notification to customer user with a URL to complete
+                onboarding via specified notification channel.
+            tags:
+            - Merchant Customer User Onboarding
+            parameters:
+            -   name: mid
+                in: path
+                required: true
+                schema:
+                    type: string
+                description: Merchant ID
+            -   name: cid
+                in: path
+                required: true
+                schema:
+                    type: string
+                description: Customer ID
+            -   name: uid
+                in: path
+                required: true
+                schema:
+                    type: string
+                description: User ID
+            responses:
+                default:
+                    description: Error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorResponse'
+                '200':
+                    description: OK
+            security:
+            -   X-Api-Key: []
+            deprecated: true
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/NotifyRequestSchema'
+    /v2/merchant/{mid}/customer/{cid}/user_lookup/{merchant_user_id}:
+        get:
+            summary: Get customer user record from external user ID
+            operationId: get_merchant_customer_user_lookup_v2_handler.get
+            description: ''
+            tags:
+            - Merchant Customer User Onboarding
+            parameters:
+            -   name: mid
+                in: path
+                required: true
+                schema:
+                    type: string
+                description: Merchant ID
+            -   name: cid
+                in: path
+                required: true
+                schema:
+                    type: string
+                description: Customer ID
+            -   name: merchant_user_id
+                in: path
+                required: true
+                schema:
+                    type: string
+                description: External user ID
+            responses:
+                default:
+                    description: Error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorResponse'
+                '200':
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/CustomerUserResponseSchemaV2'
+            security:
+            -   X-Api-Key: []
+            deprecated: true
+components:
+    schemas:
+        ErrorResponse:
+            properties:
+                error_code:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    description: An error code related to the error.
+                    title: Error Code
+                error_details:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    description: A detailed description of the error when available.
+                    title: Error Details
+                error_message:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    description: A short description of the error.
+                    title: Error Message
+                error_json:
+                    anyOf:
+                    -   items:
+                            $ref: '#/components/schemas/ErrorJSON'
+                        type: array
+                    -   type: 'null'
+                    default: null
+                    description: A list of errors when available.
+                    title: Error Json
+                error_trace_id:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    description: A unique trace ID for the request that generated
+                        the error. Please quote this trace ID in any support requests.
+                    title: Error Trace Id
+            title: ErrorResponse
+            type: object
+        ErrorJSON:
+            properties:
+                loc:
+                    anyOf:
+                    -   items:
+                            anyOf:
+                            -   type: string
+                            -   type: integer
+                        type: array
+                    -   type: 'null'
+                    default: null
+                    description: Error location.
+                    title: Loc
+                msg:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    description: Error message.
+                    title: Msg
+                type:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    description: Error type.
+                    title: Type
+                ctx:
+                    anyOf:
+                    -   type: string
+                    -   additionalProperties: true
+                        type: object
+                    -   type: 'null'
+                    default: null
+                    description: Error context information.
+                    title: Ctx
+            title: ErrorJSON
+            type: object
+        CustomerCreateRequestSchemaV2:
+            description: Web schema for merchant customer create
+            example:
+                billing_email_address: example@gmail.com
+                country_prefix: GB
+                legal_name: TWO B2B LTD
+                merchant_customer_id: merchant-cid-123
+                merchant_redirect_urls:
+                    onboarding_completed_url: https://www.success.com/
+                    onboarding_failed_url: https://www.afternic.com/forsale/failed.com?utm_source=TDFS&utm_medium=sn_affiliate_click&utm_campaign=TDFS_Affiliate_namefind_direct9&traffic_type=CL3&traffic_id=Namefind
+                official_address:
+                    city: London
+                    country: GB
+                    id: '12345'
+                    organization_name: TWO B2B LTD
+                    postal_code: EC2A 4BT
+                    region: GB
+                    street_address: 4 Crown Pl
+                organization_id: '13078389'
+                shipping_address:
+                    city: London
+                    country: GB
+                    id: '12345'
+                    organization_name: TWO B2B LTD
+                    postal_code: EC2A 4BT
+                    region: GB
+                    street_address: 4 Crown Pl
+                website: example.com
+            properties:
+                billing_email_address:
+                    anyOf:
+                    -   format: email
+                        type: string
+                    -   type: 'null'
+                    default: null
+                    deprecated: true
+                    description: Deprecated, please use invoice_email_addresses.
+                    title: Billing Email Address
+                invoice_email_addresses:
+                    anyOf:
+                    -   items:
+                            format: email
+                            type: string
+                        type: array
+                    -   type: 'null'
+                    default: null
+                    description: These email addresses is designated to receive the
+                        invoices attached to this trade account in addition to the
+                        user email used to create orders. In case the order is placed
+                        using a billing account ID, emails will be directed to the
+                        address specified for that billing account instead.
+                    title: Invoice Email Addresses
+                email_domain:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    deprecated: true
+                    description: Unique name that appears after the @ sign in email
+                        addresses
+                    title: Email Domain
+                legal_name:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    deprecated: true
+                    description: The legal name of the buyer company, deprecated as
+                        Two company search will set the customer legal name
+                    title: Legal Name
+                merchant_customer_id:
+                    description: The customer id registered in the merchant's solution
+                    maxLength: 255
+                    minLength: 1
+                    title: Merchant Customer Id
+                    type: string
+                merchant_redirect_urls:
+                    anyOf:
+                    -   $ref: '#/components/schemas/MerchantRedirectUrlsSchema'
+                    -   type: 'null'
+                    default: null
+                    deprecated: true
+                official_address:
+                    $ref: '#/components/schemas/CreateAddressRequestSchema'
+                    description: Address fields connected to the business customer
+                website:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    description: The website of the business customer
+                    title: Website
+                insights_webhook:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    deprecated: true
+                    description: Deprecated
+                    title: Insights Webhook
+                shipping_addresses:
+                    anyOf:
+                    -   items:
+                            $ref: '#/components/schemas/CreateAddressRequestSchema'
+                        type: array
+                    -   type: 'null'
+                    default: null
+                    description: Address fields connected to the business customer
+                    title: Shipping Addresses
+                trade_name:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    description: If the company is using a different brand/trade name,
+                        this can included here.
+                    title: Trade Name
+                webhooks:
+                    anyOf:
+                    -   $ref: '#/components/schemas/HookSchema'
+                    -   type: 'null'
+                    default: null
+                additional_identifiers:
+                    anyOf:
+                    -   additionalProperties:
+                            type: string
+                        propertyNames:
+                            $ref: '#/components/schemas/AdditionalIdentifierSchemaEnum'
+                        type: object
+                    -   type: 'null'
+                    default: null
+                    description: Optionally provide us with any other relevant identifiers
+                        related to this company.
+                    title: Additional Identifiers
+                estimated_monthly_spend:
+                    anyOf:
+                    -   format: decimal
+                        pattern: ^-?[0-9]+(\.[0-9]{0,2})?
+                        type: string
+                    -   type: 'null'
+                    default: null
+                    description: The estimated monthly spend for the customer.
+                    title: Estimated Monthly Spend
+                canonical_id:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    description: Canonical company identifier. If provided, country_prefix
+                        and organization_id are optional.
+                    title: Canonical Id
+                country_prefix:
+                    anyOf:
+                    -   $ref: '#/components/schemas/CountryCodeEnum'
+                    -   type: 'null'
+                    default: null
+                    description: Country code in ISO 3166-1 alpha-2 format. Required
+                        if canonical_id is not provided.
+                    examples:
+                    - GB
+                organization_id:
+                    anyOf:
+                    -   maxLength: 255
+                        minLength: 1
+                        type: string
+                    -   type: 'null'
+                    default: null
+                    description: Organization number of the buyer company. Required
+                        if canonical_id is not provided.
+                    title: Organization Id
+            required:
+            - merchant_customer_id
+            - official_address
+            title: CustomerCreateRequestSchemaV2
+            type: object
+        AdditionalIdentifierSchemaEnum:
+            enum:
+            - GOOGLE_PLACES
+            title: AdditionalIdentifierSchemaEnum
+            type: string
+        CountryCodeEnum:
+            enum:
+            - AD
+            - AE
+            - AL
+            - AM
+            - AO
+            - AR
+            - AT
+            - AU
+            - AZ
+            - BA
+            - BB
+            - BD
+            - BE
+            - BF
+            - BG
+            - BH
+            - BI
+            - BJ
+            - BN
+            - BO
+            - BR
+            - BS
+            - BW
+            - CA
+            - CG
+            - CH
+            - CL
+            - CM
+            - CO
+            - CR
+            - CY
+            - CZ
+            - DE
+            - DJ
+            - DK
+            - DO
+            - DZ
+            - EC
+            - EE
+            - EG
+            - ES
+            - ET
+            - FI
+            - FJ
+            - FR
+            - GA
+            - GB
+            - GE
+            - GH
+            - GN
+            - GQ
+            - GR
+            - GT
+            - GY
+            - HN
+            - HR
+            - HT
+            - HU
+            - ID
+            - IE
+            - IL
+            - IN
+            - IQ
+            - IS
+            - IT
+            - JM
+            - JO
+            - JP
+            - KE
+            - KG
+            - KH
+            - KR
+            - KW
+            - KZ
+            - LA
+            - LB
+            - LI
+            - LK
+            - LT
+            - LU
+            - LV
+            - LR
+            - MA
+            - MC
+            - MD
+            - ME
+            - MG
+            - MK
+            - MN
+            - MR
+            - MT
+            - MU
+            - MV
+            - MW
+            - MX
+            - MY
+            - MZ
+            - NA
+            - NE
+            - NG
+            - NL
+            - 'NO'
+            - NP
+            - NZ
+            - OM
+            - PA
+            - PE
+            - PG
+            - PH
+            - PK
+            - PL
+            - PT
+            - PY
+            - QA
+            - RO
+            - RS
+            - RW
+            - SA
+            - SE
+            - SG
+            - SI
+            - SK
+            - SL
+            - SN
+            - SR
+            - SV
+            - SZ
+            - TD
+            - TG
+            - TH
+            - TJ
+            - TM
+            - TN
+            - TR
+            - TT
+            - TZ
+            - UA
+            - UG
+            - US
+            - UY
+            - UZ
+            - VN
+            - ZA
+            - ZM
+            title: CountryCodeEnum
+            type: string
+        CreateAddressRequestSchema:
+            properties:
+                organization_name:
+                    title: Organization Name
+                    type: string
+                street_address:
+                    maxLength: 255
+                    title: Street Address
+                    type: string
+                country:
+                    $ref: '#/components/schemas/CountryCodeEnum'
+                postal_code:
+                    title: Postal Code
+                    type: string
+                city:
+                    title: City
+                    type: string
+                region:
+                    default: ''
+                    title: Region
+                    type: string
+            required:
+            - organization_name
+            - street_address
+            - country
+            - postal_code
+            - city
+            title: CreateAddressRequestSchema
+            type: object
+        HookSchema:
+            properties:
+                on_updates_url:
+                    description: This url will be called with a POST request containing
+                        JSON data when a business customer is updated via the Patch
+                        your business customer or Update your business customer endpoints
+                    title: On Updates Url
+                    type: string
+                on_errors_url:
+                    description: This url will be called with a POST request containing
+                        JSON data when an error is raised while attempting update
+                        or patch a business customer
+                    title: On Errors Url
+                    type: string
+            required:
+            - on_updates_url
+            - on_errors_url
+            title: HookSchema
+            type: object
+        MerchantRedirectUrlsSchema:
+            properties:
+                onboarding_completed_url:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    title: Onboarding Completed Url
+                onboarding_failed_url:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    title: Onboarding Failed Url
+            title: MerchantRedirectUrlsSchema
+            type: object
+        CustomerResponseSchemaV2:
+            description: Web schema for merchant customer response
+            properties:
+                billing_email_address:
+                    anyOf:
+                    -   format: email
+                        type: string
+                    -   type: 'null'
+                    default: null
+                    deprecated: true
+                    description: Deprecated, please use invoice_email_addresses.
+                    title: Billing Email Address
+                invoice_email_addresses:
+                    anyOf:
+                    -   items:
+                            format: email
+                            type: string
+                        type: array
+                    -   type: 'null'
+                    default: null
+                    description: These email addresses is designated to receive the
+                        invoices attached to this trade account in addition to the
+                        user email used to create orders. In case the order is placed
+                        using a billing account ID, emails will be directed to the
+                        address specified for that billing account instead.
+                    title: Invoice Email Addresses
+                email_domain:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    deprecated: true
+                    description: Unique name that appears after the @ sign in email
+                        addresses
+                    title: Email Domain
+                legal_name:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    description: The legal name of the buyer company
+                    title: Legal Name
+                merchant_customer_id:
+                    description: The customer id registered in the merchant's solution
+                    maxLength: 255
+                    minLength: 1
+                    title: Merchant Customer Id
+                    type: string
+                merchant_redirect_urls:
+                    anyOf:
+                    -   $ref: '#/components/schemas/MerchantRedirectUrlsSchema'
+                    -   type: 'null'
+                    default: null
+                    deprecated: true
+                official_address:
+                    anyOf:
+                    -   $ref: '#/components/schemas/AddressResponseSchema'
+                    -   type: 'null'
+                    default: null
+                    description: Address fields connected to the business customer
+                website:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    description: The website of the business customer
+                    title: Website
+                insights_webhook:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    deprecated: true
+                    description: Deprecated
+                    title: Insights Webhook
+                shipping_addresses:
+                    anyOf:
+                    -   items:
+                            $ref: '#/components/schemas/AddressResponseSchema'
+                        type: array
+                    -   type: 'null'
+                    default: null
+                    description: Address fields connected to the business customer
+                    title: Shipping Addresses
+                trade_name:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    description: If the company is using a different brand/trade name,
+                        this can included here.
+                    title: Trade Name
+                webhooks:
+                    anyOf:
+                    -   $ref: '#/components/schemas/HookSchema'
+                    -   type: 'null'
+                    default: null
+                additional_identifiers:
+                    anyOf:
+                    -   additionalProperties:
+                            type: string
+                        propertyNames:
+                            $ref: '#/components/schemas/AdditionalIdentifierSchemaEnum'
+                        type: object
+                    -   type: 'null'
+                    default: null
+                    description: Optionally provide us with any other relevant identifiers
+                        related to this company.
+                    title: Additional Identifiers
+                estimated_monthly_spend:
+                    anyOf:
+                    -   format: decimal
+                        pattern: ^-?[0-9]+(\.[0-9]{0,2})?
+                        type: string
+                    -   type: 'null'
+                    default: null
+                    description: The estimated monthly spend for the customer.
+                    title: Estimated Monthly Spend
+                id:
+                    description: A globally unique business customer ID set by Two.
+                    format: uuid
+                    title: Id
+                    type: string
+                merchant_id:
+                    description: A globally unique merchant ID set by Two.
+                    format: uuid
+                    title: Merchant Id
+                    type: string
+                approved_for_credit:
+                    description: The result of Two's assessment of whether this customer
+                        is credit-worthy.
+                    title: Approved For Credit
+                    type: boolean
+                review_status:
+                    $ref: '#/components/schemas/CustomerReviewStatusEnum'
+                    default: COMPLETED
+                    description: The status of the post-verification review. Defaults
+                        to `COMPLETED` for automatic approvals. Set to `PENDING_MANUAL_REVIEW`
+                        when flagged for additional review.
+                buyer_is_in_arrears:
+                    anyOf:
+                    -   type: boolean
+                    -   type: 'null'
+                    default: null
+                    description: The result of Two's check on whether this business
+                        customer is in arrears.
+                    title: Buyer Is In Arrears
+                decline_reason:
+                    anyOf:
+                    -   $ref: '#/components/schemas/DeclineReasonEnum'
+                    -   type: 'null'
+                    default: null
+                    description: Reason credit was not available
+                country_prefix:
+                    anyOf:
+                    -   $ref: '#/components/schemas/CountryCodeEnum'
+                    -   type: 'null'
+                    default: null
+                    description: Country code in ISO 3166-1 alpha-2 format
+                    examples:
+                    - GB
+                organization_id:
+                    anyOf:
+                    -   maxLength: 255
+                        minLength: 1
+                        type: string
+                    -   type: 'null'
+                    default: null
+                    description: National id of the buyer company
+                    title: Organization Id
+                approved_for_credit_with_conditions:
+                    default: []
+                    description: Credit approved pending conditions that a user must
+                        satisfy during the verification journey
+                    examples:
+                    -   description: During verification the customer user will be
+                            asked to consent to credit check, consent will trigger
+                            a credit check
+                        value: CREDIT_CHECK_CONSENT
+                    items:
+                        type: string
+                    title: Approved For Credit With Conditions
+                    type: array
+                max_single_order_value:
+                    anyOf:
+                    -   type: number
+                    -   type: 'null'
+                    default: null
+                    description: The maximum value of any single order that may be
+                        placed
+                    title: Max Single Order Value
+                credit_limit:
+                    anyOf:
+                    -   type: number
+                    -   type: 'null'
+                    default: null
+                    description: The Maximum credit limit offered
+                    title: Credit Limit
+                credit_limit_balance:
+                    anyOf:
+                    -   type: number
+                    -   type: 'null'
+                    default: null
+                    description: The remaining credit available
+                    title: Credit Limit Balance
+                credit_limit_currency:
+                    anyOf:
+                    -   $ref: '#/components/schemas/CurrencyEnum'
+                    -   type: 'null'
+                    default: GBP
+                    description: The credit limit currency
+            required:
+            - merchant_customer_id
+            - id
+            - merchant_id
+            - approved_for_credit
+            title: CustomerResponseSchemaV2
+            type: object
+        AddressResponseSchema:
+            properties:
+                id:
+                    title: Id
+                    type: string
+                organization_name:
+                    title: Organization Name
+                    type: string
+                street_address:
+                    title: Street Address
+                    type: string
+                postal_code:
+                    title: Postal Code
+                    type: string
+                city:
+                    title: City
+                    type: string
+                region:
+                    title: Region
+                    type: string
+                country:
+                    $ref: '#/components/schemas/CountryCodeEnum'
+                preferred:
+                    anyOf:
+                    -   type: boolean
+                    -   type: 'null'
+                    default: null
+                    title: Preferred
+            required:
+            - id
+            - organization_name
+            - street_address
+            - postal_code
+            - city
+            - region
+            - country
+            title: AddressResponseSchema
+            type: object
+        CurrencyEnum:
+            enum:
+            - CHF
+            - CZK
+            - DKK
+            - EUR
+            - GBP
+            - INR
+            - MXN
+            - NOK
+            - PLN
+            - RON
+            - SEK
+            - USD
+            title: CurrencyEnum
+            type: string
+        CustomerReviewStatusEnum:
+            description: Enum for customer review status
+            enum:
+            - PENDING_MANUAL_REVIEW
+            - COMPLETED
+            - REJECTED
+            title: CustomerReviewStatusEnum
+            type: string
+        DeclineReasonEnum:
+            enum:
+            - TOO_HIGH_RISK
+            - BUYER_LIMIT_EXCEEDED
+            - BUYER_NOT_FOUND
+            - BUYER_ADDRESS_DEVIATION
+            - BUYER_INFO_INCONSISTENT
+            - BUYER_AUTHENTICATION_FAILED
+            - FRAUD_CHECK_NOT_PASSED
+            - CREDIT_CHECK_FAILED
+            - EXCEPTION
+            - SERVICE_UNAVAILABLE
+            - BUYER_IN_ARREARS
+            - DECLINED_IN_VERIFICATION
+            - UNDEFINED
+            - INVALID_LEGAL_REP
+            - ORDER_EXCEEDS_MAX_INVOICE_AMOUNT
+            - SE_SOLE_TRADER
+            - INVALID_ORDER_DATA
+            - INVALID_ORDER_DATA_TOTAL_AMOUNT_MISMATCH
+            - INVALID_ORDER_LINE_ITEM_DATA_AMOUNT_MISMATCH
+            - MERCHANT_LIMIT_EXCEEDED
+            - ORDER_BELOW_MIN_INVOICE_AMOUNT
+            - ORDER_EXCEEDS_MIN_INVOICE_AMOUNT
+            - BUYER_NOT_SUPPORTED
+            - BUYER_IS_BLOCKED
+            - NO_BUSINESS_ACCOUNT
+            - MERCHANT_NOT_ON_RECOURSE
+            - COMPANY_CREDIT_REPORT_CONSENT_REQUIRED
+            - NO_LEGAL_REPRESENTATIVES
+            - CREDIT_REPORT_BLOCKED
+            - ORDER_EXCEEDS_REGIONAL_LIMIT
+            title: DeclineReasonEnum
+            type: string
+        CustomerReplaceRequestSchemaV2:
+            description: Web schema for merchant customer update
+            properties:
+                billing_email_address:
+                    anyOf:
+                    -   format: email
+                        type: string
+                    -   type: 'null'
+                    default: null
+                    deprecated: true
+                    description: Deprecated, please use invoice_email_addresses.
+                    title: Billing Email Address
+                invoice_email_addresses:
+                    anyOf:
+                    -   items:
+                            format: email
+                            type: string
+                        type: array
+                    -   type: 'null'
+                    default: null
+                    description: These email addresses is designated to receive the
+                        invoices attached to this trade account in addition to the
+                        user email used to create orders. In case the order is placed
+                        using a billing account ID, emails will be directed to the
+                        address specified for that billing account instead.
+                    title: Invoice Email Addresses
+                email_domain:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    deprecated: true
+                    description: Unique name that appears after the @ sign in email
+                        addresses
+                    title: Email Domain
+                legal_name:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    deprecated: true
+                    description: The legal name of the buyer company, deprecated as
+                        Two company search will set the customer legal name
+                    title: Legal Name
+                merchant_customer_id:
+                    description: The customer id registered in the merchant's solution
+                    maxLength: 255
+                    minLength: 1
+                    title: Merchant Customer Id
+                    type: string
+                merchant_redirect_urls:
+                    anyOf:
+                    -   $ref: '#/components/schemas/MerchantRedirectUrlsSchema'
+                    -   type: 'null'
+                    default: null
+                    deprecated: true
+                official_address:
+                    $ref: '#/components/schemas/CreateAddressRequestSchema'
+                    description: Address fields connected to the business customer
+                website:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    description: The website of the business customer
+                    title: Website
+                insights_webhook:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    deprecated: true
+                    description: Deprecated
+                    title: Insights Webhook
+                shipping_addresses:
+                    anyOf:
+                    -   items:
+                            $ref: '#/components/schemas/CreateAddressRequestSchema'
+                        type: array
+                    -   type: 'null'
+                    default: null
+                    description: Address fields connected to the business customer
+                    title: Shipping Addresses
+                trade_name:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    description: If the company is using a different brand/trade name,
+                        this can included here.
+                    title: Trade Name
+                webhooks:
+                    anyOf:
+                    -   $ref: '#/components/schemas/HookSchema'
+                    -   type: 'null'
+                    default: null
+                additional_identifiers:
+                    anyOf:
+                    -   additionalProperties:
+                            type: string
+                        propertyNames:
+                            $ref: '#/components/schemas/AdditionalIdentifierSchemaEnum'
+                        type: object
+                    -   type: 'null'
+                    default: null
+                    description: Optionally provide us with any other relevant identifiers
+                        related to this company.
+                    title: Additional Identifiers
+                estimated_monthly_spend:
+                    anyOf:
+                    -   format: decimal
+                        pattern: ^-?[0-9]+(\.[0-9]{0,2})?
+                        type: string
+                    -   type: 'null'
+                    default: null
+                    description: The estimated monthly spend for the customer.
+                    title: Estimated Monthly Spend
+            required:
+            - merchant_customer_id
+            - official_address
+            title: CustomerReplaceRequestSchemaV2
+            type: object
+        CustomerUpdateRequestSchema:
+            description: Web schema for merchant customer update
+            properties:
+                merchant_customer_id:
+                    anyOf:
+                    -   maxLength: 255
+                        minLength: 1
+                        type: string
+                    -   type: 'null'
+                    default: null
+                    description: The customer id registered in the merchant's solution
+                    title: Merchant Customer Id
+                official_address:
+                    anyOf:
+                    -   $ref: '#/components/schemas/CreateAddressRequestSchema'
+                    -   type: 'null'
+                    default: null
+                    description: Address fields connected to the business customer
+                shipping_addresses:
+                    anyOf:
+                    -   items:
+                            $ref: '#/components/schemas/CreateAddressRequestSchema'
+                        type: array
+                    -   type: 'null'
+                    default: null
+                    description: Array of address fields connected to the business
+                        customer
+                    title: Shipping Addresses
+                merchant_redirect_urls:
+                    anyOf:
+                    -   $ref: '#/components/schemas/MerchantRedirectUrlsSchema'
+                    -   type: 'null'
+                    default: null
+                email_domain:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    deprecated: true
+                    description: Unique name that appears after the @ sign in email
+                        addresses
+                    title: Email Domain
+                insights_webhook:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    description: Subscribe to updates for company insights. A json
+                        object will be POST-ed to this url whenever the insights for
+                        this company get updated. The schema for this json-object
+                        it the same as for the response body of GET /merchant/{mid}/customer/{cid}/insights.
+                    title: Insights Webhook
+                legal_name:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    deprecated: true
+                    description: The legal name of the buyer company, deprecated as
+                        Two company search will set the customer legal name
+                    title: Legal Name
+                trade_name:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    description: If the company is using a different brand/trade name,
+                        this can included here.
+                    title: Trade Name
+                website:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    description: The website of the business customer
+                    title: Website
+                webhooks:
+                    anyOf:
+                    -   $ref: '#/components/schemas/HookSchema'
+                    -   type: 'null'
+                    default: null
+                billing_email_address:
+                    anyOf:
+                    -   format: email
+                        type: string
+                    -   type: 'null'
+                    default: null
+                    deprecated: true
+                    description: Deprecated, please use invoice_email_addresses.
+                    title: Billing Email Address
+                invoice_email_addresses:
+                    anyOf:
+                    -   items:
+                            format: email
+                            type: string
+                        type: array
+                    -   type: 'null'
+                    default: null
+                    description: These email addresses is designated to receive the
+                        invoices attached to this trade account in addition to the
+                        user email used to create orders. In case the order is placed
+                        using a billing account ID, emails will be directed to the
+                        address specified for that billing account instead.
+                    title: Invoice Email Addresses
+                additional_identifiers:
+                    anyOf:
+                    -   additionalProperties:
+                            type: string
+                        propertyNames:
+                            $ref: '#/components/schemas/AdditionalIdentifierSchemaEnum'
+                        type: object
+                    -   type: 'null'
+                    default: null
+                    description: Optionally provide us with any other relevant identifiers
+                        related to this company.
+                    title: Additional Identifiers
+                organization_id:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    title: Organization Id
+            title: CustomerUpdateRequestSchema
+            type: object
+        CursorPaginationRequestSchema:
+            description: |-
+                Schema to hold cursor pagination details
+                limit: items per pagination
+            properties:
+                limit:
+                    anyOf:
+                    -   minimum: 0
+                        type: integer
+                    -   type: 'null'
+                    default: null
+                    description: The maximum number of items on a single page, ie
+                        the page size.
+                    title: Limit
+                page_cursor:
+                    anyOf:
+                    -   minLength: 1
+                        type: string
+                    -   type: 'null'
+                    default: null
+                    description: The requested page, base64str encoded.
+                    title: Page Cursor
+            title: CursorPaginationRequestSchema
+            type: object
+        CustomerResponseListUnionSchemaV2:
+            anyOf:
+            -   $ref: '#/components/schemas/CustomerResponseListSchemaV2'
+            -   $ref: '#/components/schemas/CustomerResponseListPaginatedSchemaV2'
+            description: Union of paginated and unpaginated response
+            title: CustomerResponseListUnionSchemaV2
+        CursorPageMetadata:
+            properties:
+                previous_page_cursor:
+                    anyOf:
+                    -   minLength: 1
+                        type: string
+                    -   type: 'null'
+                    default: cursor to the previous page
+                    title: Previous Page Cursor
+                next_page_cursor:
+                    anyOf:
+                    -   minLength: 1
+                        type: string
+                    -   type: 'null'
+                    default: cursor to the next page
+                    title: Next Page Cursor
+                limit:
+                    description: The maximum number of items on a single page, ie
+                        the page size.
+                    minimum: 0
+                    title: Limit
+                    type: integer
+            required:
+            - limit
+            title: CursorPageMetadata
+            type: object
+        CustomerResponseListPaginatedSchemaV2:
+            properties:
+                items:
+                    description: List of merchant customers
+                    items:
+                        $ref: '#/components/schemas/CustomerResponseSchemaV2'
+                    title: Items
+                    type: array
+                cursor_page_metadata:
+                    $ref: '#/components/schemas/CursorPageMetadata'
+            required:
+            - items
+            - cursor_page_metadata
+            title: CustomerResponseListPaginatedSchemaV2
+            type: object
+        CustomerResponseListSchemaV2:
+            description: List of merchant customers
+            items:
+                $ref: '#/components/schemas/CustomerResponseSchemaV2'
+            title: CustomerResponseListSchemaV2
+            type: array
+        CustomerUserCreateRequestSchemaV2:
+            description: Web schema for merchant customer user create
+            properties:
+                email:
+                    description: This is the user email address
+                    format: email
+                    title: Email
+                    type: string
+                first_name:
+                    description: This is the user first name
+                    minLength: 1
+                    title: First Name
+                    type: string
+                last_name:
+                    description: This is the user last name
+                    minLength: 1
+                    title: Last Name
+                    type: string
+                merchant_user_id:
+                    description: Your internal ID of this user (the employee of your
+                        business customer).
+                    maxLength: 255
+                    minLength: 1
+                    title: Merchant User Id
+                    type: string
+                phone:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    description: This is the user phone number
+                    title: Phone
+                verification_success_redirect_url:
+                    description: Redirect url after user successfully completes verification
+                    title: Verification Success Redirect Url
+                    type: string
+                verified_fields:
+                    anyOf:
+                    -   items:
+                            type: string
+                        type: array
+                    -   type: 'null'
+                    default: null
+                    description: List of verified user credentials set by the merchant
+                    title: Verified Fields
+            required:
+            - email
+            - first_name
+            - last_name
+            - merchant_user_id
+            - verification_success_redirect_url
+            title: CustomerUserCreateRequestSchemaV2
+            type: object
+        CustomerUserResponseSchemaV2:
+            properties:
+                email:
+                    description: This is the user email address
+                    format: email
+                    title: Email
+                    type: string
+                first_name:
+                    description: This is the user first name
+                    minLength: 1
+                    title: First Name
+                    type: string
+                last_name:
+                    description: This is the user last name
+                    minLength: 1
+                    title: Last Name
+                    type: string
+                merchant_user_id:
+                    description: Your internal ID of this user (the employee of your
+                        business customer).
+                    maxLength: 255
+                    minLength: 1
+                    title: Merchant User Id
+                    type: string
+                phone:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    description: This is the user phone number
+                    title: Phone
+                verification_success_redirect_url:
+                    description: Redirect url after user successfully completes verification
+                    title: Verification Success Redirect Url
+                    type: string
+                verified_fields:
+                    anyOf:
+                    -   items:
+                            type: string
+                        type: array
+                    -   type: 'null'
+                    default: null
+                    description: List of verified user credentials set by the merchant
+                    title: Verified Fields
+                id:
+                    format: uuid
+                    title: Id
+                    type: string
+                merchant_id:
+                    description: A globally unique merchant ID set by Two.
+                    format: uuid
+                    title: Merchant Id
+                    type: string
+                customer_id:
+                    description: A globally unique customer ID set by Two.
+                    format: uuid
+                    title: Customer Id
+                    type: string
+                is_legal_rep:
+                    anyOf:
+                    -   type: boolean
+                    -   type: 'null'
+                    default: null
+                    description: Status of customer user as legal representative
+                    title: Is Legal Rep
+                user_verification_url:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    description: Two hosted verification page
+                    title: User Verification Url
+                verified:
+                    description: Verification status of the customer user
+                    title: Verified
+                    type: boolean
+                credit_builder_url:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    description: Credit builder page for the user
+                    title: Credit Builder Url
+            required:
+            - email
+            - first_name
+            - last_name
+            - merchant_user_id
+            - verification_success_redirect_url
+            - id
+            - merchant_id
+            - customer_id
+            - verified
+            title: CustomerUserResponseSchemaV2
+            type: object
+        CustomerUserAttachVerificationRequestSchema:
+            properties:
+                id:
+                    description: Existing verified verification ID to attach to this
+                        user
+                    format: uuid
+                    title: Id
+                    type: string
+            required:
+            - id
+            title: CustomerUserAttachVerificationRequestSchema
+            type: object
+        CustomerUserUpdateRequestSchema:
+            properties:
+                email:
+                    anyOf:
+                    -   format: email
+                        type: string
+                    -   type: 'null'
+                    default: null
+                    description: This is the user email address
+                    title: Email
+                first_name:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    description: This is the user first name
+                    title: First Name
+                last_name:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    description: This is the user last name
+                    title: Last Name
+                merchant_user_id:
+                    anyOf:
+                    -   maxLength: 255
+                        minLength: 1
+                        type: string
+                    -   type: 'null'
+                    default: null
+                    description: Your internal ID of this user (the employee of your
+                        business customer).
+                    title: Merchant User Id
+                phone:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    description: This is the user phone number
+                    title: Phone
+                verification_success_redirect_url:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    description: Redirect url after user successfully completes verification
+                    title: Verification Success Redirect Url
+                verified_fields:
+                    anyOf:
+                    -   items:
+                            type: string
+                        type: array
+                    -   type: 'null'
+                    default: null
+                    description: List of verified user credentials set by the merchant
+                    title: Verified Fields
+            title: CustomerUserUpdateRequestSchema
+            type: object
+        CustomerUserReplaceRequestSchemaV2:
+            properties:
+                email:
+                    anyOf:
+                    -   format: email
+                        type: string
+                    -   type: 'null'
+                    default: null
+                    description: This is the user email address
+                    title: Email
+                first_name:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    description: This is the user first name
+                    title: First Name
+                last_name:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    description: This is the user last name
+                    title: Last Name
+                merchant_user_id:
+                    description: Your internal ID of this user (the employee of your
+                        business customer).
+                    maxLength: 255
+                    minLength: 1
+                    title: Merchant User Id
+                    type: string
+                phone:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    description: This is the user phone number
+                    title: Phone
+                verification_success_redirect_url:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    description: Redirect url after user successfully completes verification
+                    title: Verification Success Redirect Url
+                verified_fields:
+                    anyOf:
+                    -   items:
+                            type: string
+                        type: array
+                    -   type: 'null'
+                    default: null
+                    description: List of verified user credentials set by the merchant
+                    title: Verified Fields
+            required:
+            - merchant_user_id
+            title: CustomerUserReplaceRequestSchemaV2
+            type: object
+        CustomerUserResponseListUnionSchemaV2:
+            anyOf:
+            -   $ref: '#/components/schemas/CustomerUserResponseListSchemaV2'
+            -   $ref: '#/components/schemas/CustomerUserResponseListPaginatedSchemaV2'
+            title: CustomerUserResponseListUnionSchemaV2
+        CustomerUserResponseListPaginatedSchemaV2:
+            properties:
+                items:
+                    description: List of merchant customer users
+                    items:
+                        $ref: '#/components/schemas/CustomerUserResponseSchemaV2'
+                    title: Items
+                    type: array
+                cursor_page_metadata:
+                    $ref: '#/components/schemas/CursorPageMetadata'
+            required:
+            - items
+            - cursor_page_metadata
+            title: CustomerUserResponseListPaginatedSchemaV2
+            type: object
+        CustomerUserResponseListSchemaV2:
+            description: List of merchant customer users
+            items:
+                $ref: '#/components/schemas/CustomerUserResponseSchemaV2'
+            title: CustomerUserResponseListSchemaV2
+            type: array
+        NotifyRequestSchema:
+            description: |-
+                Triggers buyer notifications.
+
+                For trade account orders, notifications are sent to the contact information (phone/email)
+                registered with the trade account, regardless of what's in the order.buyer object.
+            example:
+                channel: sms
+            properties:
+                channel:
+                    $ref: '#/components/schemas/NotificationChannel'
+            required:
+            - channel
+            title: NotifyRequestSchema
+            type: object
+        NotificationChannel:
+            enum:
+            - sms
+            - email
+            title: NotificationChannel
+            type: string
+    securitySchemes:
+        X-Api-Key:
+            type: apiKey
+            description: |-
+                For instructions on how to obtain API keys, visit [this page](/docs/guides/getting-api-keys-page/).
+                You will obtain two different keys, an initial one for testing in our sandbox environment and once ready, for production.
+                Your API keys enables others to act on your behalf if they are able to obtain them, so make sure to keep them safe.
+                Your API key is not to be shared with anyone, including in your version control system, client-side code, in public chatrooms and so on.
+                The API key is applied in the request header. For example:
+                ```
+                GET /something
+                X-Api-Key: secret_test_aabbccddeeff0123456789
+                ```
+
+                API Keys have the following structure: `secret_<env>_<key>` where:
+                - `env` is determined by the environment (`prod` for production, `test` for test environments)
+                - `key` is a random, URL-safe, 64-bit encoded text string containing 32 random bytes.
+            name: X-Api-Key
+            in: header
+servers:
+-   url: https://api.sandbox.two.inc
+    description: Testing
+-   url: https://api.two.inc
+    description: Production
+security: []

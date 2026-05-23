@@ -1,0 +1,515 @@
+openapi: 3.1.0
+info:
+    title: Autofill API
+    version: '1.0'
+    description: |-
+        API for saving and retrieving buyer details, to support autofill of checkout fields.
+
+        Subject to a buyer's opt-in consent, any merchant may store that buyer's details using this API. Those details may then
+        be retrieved by that merchant, or any other Two-powered merchant, for the purposes of autofilling checkout information for
+        that buyer. If consent is not provided the API may still be used to store details non-persistently for the duration
+        of the buyer's current browser session, facilitating the transmission of buyer details between Two-hosted and
+        merchant-hosted pages within the same workflow.
+
+
+        ## Environments
+
+        ### Testing
+
+        [https://api.sandbox.two.inc](https://api.sandbox.two.inc/v1/health)
+
+        Note: Read about our [sandbox environment specific behaviour](/docs/guides/sandbox-behaviour-page/).
+
+        ### Production
+
+        [https://api.two.inc](https://api.two.inc/v1/health)
+tags:
+-   name: Autofill
+paths:
+    /autofill/v1/buyer/current:
+        post:
+            summary: Save Current Buyer Details
+            operationId: store_current_buyer_details.post
+            description: Save the specified buyer details for future retrieval. Per
+                Two's terms and conditions, this service must only be used to store
+                information exactly as entered by the buyer. If persistent=true, the
+                details saved here will be saved permanently and will be accessible
+                by any Two-powered checkout. Otherwise, the details will be saved
+                only for the current session on the current checkout and will not
+                be available at other times or on other checkouts. This endpoint is
+                intended for invocation from the buyer's browser, with a delegated
+                authority token (generated via `POST ./delegation` and passed to this
+                endpoint as a request header called `Two-Delegated-Authority-Token`),
+                to facilitate auto population of checkout fields from information
+                previously entered by the buyer.
+            tags:
+            - Autofill
+            parameters: []
+            responses:
+                '200':
+                    description: The current buyer's details
+                '404':
+                    description: The current buyer's details are not available
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/BuyerDetailsRequestSchema'
+        get:
+            summary: Retrieve Buyer Details
+            operationId: get_current_buyer_details.get
+            description: Retrieve details for the current buyer, for use in autopopulation
+                of checkout fields. Per Two terms and conditions, this information
+                **must not** be used for any other purpose. This endpoint is intended
+                for invocation from the buyer's browser, with a delegated authority
+                token (generated via `POST ./delegation` and passed to this endpoint
+                as a request header called `Two-Delegated-Authority-Token`), to facilitate
+                auto population of checkout fields from information previously entered
+                by the buyer.
+            tags:
+            - Autofill
+            parameters: []
+            responses:
+                '200':
+                    description: The current buyer's details
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/BuyerDetailsSchema'
+                '404':
+                    description: The current buyer's details are not available
+        delete:
+            summary: Delete Buyer Details.
+            operationId: delete_current_buyer_details.delete
+            description: Remove all saved details for the current buyer. This will
+                remove all saved details that would be visible to the current merchant.
+                This endpoint is intended for invocation from the buyer's browser,
+                with a delegated authority token (generated via `POST ./delegation`
+                and passed to this endpoint as a request header called `Two-Delegated-Authority-Token`),
+                to facilitate auto population of checkout fields from information
+                previously entered by the buyer.
+            tags:
+            - Autofill
+            parameters: []
+            responses:
+                '200':
+                    description: Buyer details have been removed from the user's cookies.
+    /autofill/v1/delegation:
+        post:
+            summary: Create a Browser Delegation Token
+            operationId: create_delegation.post
+            description: Create a token for use within a buyer's browser. The token
+                is returned as a response header called `Two-Delegated-Authority-Token`.
+                To use the token, browser-side code should simply add the header to
+                the relevant requests. The token will grant access for 1 hour, for
+                the user's browser to access /buyer/current on this API module. No
+                other operations will be possible.
+            tags:
+            - Autofill
+            parameters: []
+            responses:
+                '200':
+                    description: Delegated authority token created and returned in
+                        response header named Two-Delegated-Authority-Token
+                '400':
+                    description: Invalid request, for instance no roles specified.
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/DelegatedAuthorityRequestSchema'
+components:
+    schemas:
+        BuyerDetailsRequestSchema:
+            properties:
+                first_name:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    description: Representative first name.
+                    examples:
+                    - John
+                    title: First Name
+                last_name:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    description: Representative last name.
+                    examples:
+                    - Doe
+                    title: Last Name
+                phone_number:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    description: Representative phone number.
+                    examples:
+                    - +44XXXXXXXXXX
+                    title: Phone Number
+                email:
+                    anyOf:
+                    -   format: email
+                        type: string
+                    -   type: 'null'
+                    default: null
+                    description: Representative email address.
+                    examples:
+                    - johndoe0112358@gmail.com
+                    title: Email
+                country_code:
+                    anyOf:
+                    -   $ref: '#/components/schemas/CountryCodeEnum'
+                    -   type: 'null'
+                    default: null
+                    description: Country in which this buyer company operates.
+                organization_number:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    description: The organization number of this buyer company.
+                    title: Organization Number
+                company_name:
+                    default: The name of this buyer company.
+                    title: Company Name
+                    type: string
+                billing_address:
+                    anyOf:
+                    -   $ref: '#/components/schemas/AddressSchema'
+                    -   type: 'null'
+                    default: null
+                    description: The most recent billing address for this buyer.
+                shipping_address:
+                    anyOf:
+                    -   $ref: '#/components/schemas/AddressSchema'
+                    -   type: 'null'
+                    default: null
+                    description: The most recent shipping address for this buyer.
+                persistent:
+                    description: If true, buyer details will be saved in a permanent
+                        cookie, otherwise a session cookie.
+                    title: Persistent
+                    type: boolean
+            required:
+            - persistent
+            title: BuyerDetailsRequestSchema
+            type: object
+        AddressSchema:
+            properties:
+                organization_name:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    title: Organization Name
+                apartment:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    title: Apartment
+                building:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    title: Building
+                street:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    title: Street
+                postal_code:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    title: Postal Code
+                city:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    title: City
+                region:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    title: Region
+                country:
+                    anyOf:
+                    -   $ref: '#/components/schemas/CountryCodeEnum'
+                    -   type: 'null'
+                    default: null
+            title: AddressSchema
+            type: object
+        CountryCodeEnum:
+            enum:
+            - AD
+            - AE
+            - AL
+            - AM
+            - AO
+            - AR
+            - AT
+            - AU
+            - AZ
+            - BA
+            - BB
+            - BD
+            - BE
+            - BF
+            - BG
+            - BH
+            - BI
+            - BJ
+            - BN
+            - BO
+            - BR
+            - BS
+            - BW
+            - CA
+            - CG
+            - CH
+            - CL
+            - CM
+            - CO
+            - CR
+            - CY
+            - CZ
+            - DE
+            - DJ
+            - DK
+            - DO
+            - DZ
+            - EC
+            - EE
+            - EG
+            - ES
+            - ET
+            - FI
+            - FJ
+            - FR
+            - GA
+            - GB
+            - GE
+            - GH
+            - GN
+            - GQ
+            - GR
+            - GT
+            - GY
+            - HN
+            - HR
+            - HT
+            - HU
+            - ID
+            - IE
+            - IL
+            - IN
+            - IQ
+            - IS
+            - IT
+            - JM
+            - JO
+            - JP
+            - KE
+            - KG
+            - KH
+            - KR
+            - KW
+            - KZ
+            - LA
+            - LB
+            - LI
+            - LK
+            - LT
+            - LU
+            - LV
+            - LR
+            - MA
+            - MC
+            - MD
+            - ME
+            - MG
+            - MK
+            - MN
+            - MR
+            - MT
+            - MU
+            - MV
+            - MW
+            - MX
+            - MY
+            - MZ
+            - NA
+            - NE
+            - NG
+            - NL
+            - 'NO'
+            - NP
+            - NZ
+            - OM
+            - PA
+            - PE
+            - PG
+            - PH
+            - PK
+            - PL
+            - PT
+            - PY
+            - QA
+            - RO
+            - RS
+            - RW
+            - SA
+            - SE
+            - SG
+            - SI
+            - SK
+            - SL
+            - SN
+            - SR
+            - SV
+            - SZ
+            - TD
+            - TG
+            - TH
+            - TJ
+            - TM
+            - TN
+            - TR
+            - TT
+            - TZ
+            - UA
+            - UG
+            - US
+            - UY
+            - UZ
+            - VN
+            - ZA
+            - ZM
+            title: CountryCodeEnum
+            type: string
+        BuyerDetailsSchema:
+            properties:
+                first_name:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    description: Representative first name.
+                    examples:
+                    - John
+                    title: First Name
+                last_name:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    description: Representative last name.
+                    examples:
+                    - Doe
+                    title: Last Name
+                phone_number:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    description: Representative phone number.
+                    examples:
+                    - +44XXXXXXXXXX
+                    title: Phone Number
+                email:
+                    anyOf:
+                    -   format: email
+                        type: string
+                    -   type: 'null'
+                    default: null
+                    description: Representative email address.
+                    examples:
+                    - johndoe0112358@gmail.com
+                    title: Email
+                country_code:
+                    anyOf:
+                    -   $ref: '#/components/schemas/CountryCodeEnum'
+                    -   type: 'null'
+                    default: null
+                    description: Country in which this buyer company operates.
+                organization_number:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    description: The organization number of this buyer company.
+                    title: Organization Number
+                company_name:
+                    default: The name of this buyer company.
+                    title: Company Name
+                    type: string
+                billing_address:
+                    anyOf:
+                    -   $ref: '#/components/schemas/AddressSchema'
+                    -   type: 'null'
+                    default: null
+                    description: The most recent billing address for this buyer.
+                shipping_address:
+                    anyOf:
+                    -   $ref: '#/components/schemas/AddressSchema'
+                    -   type: 'null'
+                    default: null
+                    description: The most recent shipping address for this buyer.
+            title: BuyerDetailsSchema
+            type: object
+        DelegatedAuthorityRequestSchema:
+            properties:
+                write_current_buyer:
+                    default: false
+                    description: This role allows the token bearer to save details
+                        of the current buyer.
+                    title: Write Current Buyer
+                    type: boolean
+                delete_current_buyer:
+                    default: false
+                    description: This role allows the token bearer to delete details
+                        of the current buyer.
+                    title: Delete Current Buyer
+                    type: boolean
+                read_current_buyer:
+                    default: true
+                    description: This role allows the token bearer to retrieve details
+                        of the current buyer.
+                    title: Read Current Buyer
+                    type: boolean
+            title: DelegatedAuthorityRequestSchema
+            type: object
+    securitySchemes:
+        X-Api-Key:
+            type: apiKey
+            description: |-
+                For instructions on how to obtain API keys, visit [this page](/docs/guides/getting-api-keys-page/).
+                You will obtain two different keys, an initial one for testing in our sandbox environment and once ready, for production.
+                Your API keys enables others to act on your behalf if they are able to obtain them, so make sure to keep them safe.
+                Your API key is not to be shared with anyone, including in your version control system, client-side code, in public chatrooms and so on.
+                The API key is applied in the request header. For example:
+                ```
+                GET /something
+                X-Api-Key: secret_test_aabbccddeeff0123456789
+                ```
+
+                API Keys have the following structure: `secret_<env>_<key>` where:
+                - `env` is determined by the environment (`prod` for production, `test` for test environments)
+                - `key` is a random, URL-safe, 64-bit encoded text string containing 32 random bytes.
+            name: X-Api-Key
+            in: header
+servers:
+-   url: https://api.sandbox.two.inc
+    description: Testing
+-   url: https://api.two.inc
+    description: Production
+security: []

@@ -1,0 +1,1560 @@
+openapi: 3.1.0
+info:
+    title: Two Billing Account API
+    version: '1.0'
+    description: |-
+        ## Overview and usage
+
+        This API is for creating and managing billing accounts.
+        A billing account serves as a record of transactions and payments for a collection of orders.
+        It helps track and manage the payments a customer owes for the services or products they have received.
+        Billing accounts can be linked to specific businesses and are used to generate grouped payment statements.
+
+        **To request access to the billing account service, please contact our team at support@two.inc.**
+
+        The API enables you to:
+
+        - Create billing accounts for businesses, allowing them to receive grouped payment statements.
+        - Define the schedule for sending out grouped payment statements from the billing account.
+        - Specify the primary and secondary email recipients who will receive the grouped payment statement emails.
+
+        Below is a typical flow of how the API endpoints are used to create a new billing account.
+
+        ### Step 1: Create Billing Account
+        Use `POST /billing/v1/account` to create a new billing account for a given company by passing their legal name and  number and defining the billing account configuration for the payment terms,
+        schedule and any delay days. The request response will return a global `id` which represents the `billing_account_id`.
+
+        ### Step 2: Attach Or Update Billing Account On Orders
+        You can link orders to a billing account in two merchant-facing order flows:
+
+        - Order creation: pass `billing_account_id` in `POST /v1/order`.
+        - Order edit: pass `billing_account_id` in `PUT /v1/order/{order_id}` to add, change, or remove the link
+
+        For order edit requests, explicitly sending `"billing_account_id": null` removes an existing link.
+        Do not pass `terms` when setting `billing_account_id`. Billing account payment terms take precedence for repayment scheduling.
+
+        ### Step 3: Validation Rules For `billing_account_id`
+
+        - The billing account must belong to the same merchant as the order.
+        - The billing account buyer company (country + organization number) must match the order buyer company.
+        - Billing account payment terms take precedence over request `terms`.
+        - `terms.type=INSTALMENTS` cannot be combined with `billing_account_id`.
+        - `terms.duration_days_calculated_from` (EOM/EOW schemes) cannot be combined with `billing_account_id`.
+        - Updating `billing_account_id` is only allowed while the order is still editable (pre-fulfillment); post-fulfillment changes are blocked.
+
+        ### Key Details and Interactions for Billing Account Setup**
+
+        **Schedule**
+
+        - The schedule you set determines how often the recipients on the billing account receive their grouped statements from Two.
+        When setting the schedule, ensure it aligns with the payment terms so that recipients receive their statements within a time frame that makes sense relative to the due date.
+        Avoid setting a schedule that is too frequent for long payment terms or too delayed for short order terms.
+
+        **Due in Days**
+
+        - The `due in days` setting specifies the payment terms for all orders assigned to the billing account.
+        The total repayment period is calculated based on the schedule and the "due in days" you set.
+        For example, if you choose a `schedule` of `DAILY` and set `due_in_days` to 14, your buyer will have 14 days to pay their order from the time they receive their statement, which in this setup, starts the next day.
+        A common configuration we support is "End of Month plus 30 days." To achieve this, set the schedule to MONTHLY and the due_in_days to 30. This setup will allow billing account recipients to receive their grouped statement at the end of the month, with payment terms starting from that date.
+        As a rule, the payment term begins when the billing account recipients receive their statement.
+
+        **Generation Delay Days**
+
+        - The primary purpose of setting delay days is to allow you, as the merchant, to process any final refunds or changes for orders on a billing account before recipients receive their statements.
+        Note that the generation delay window does not include newly fulfilled orders in the same billing cycle. Any orders created within the generation delay window will roll over to the next billing cycle.
+        By default, billing accounts are created with a 4-day generation delay, but you can adjust this during the setup process if you need a shorter or longer window.
+
+        **Account Name**
+
+        - For a given company, you can create multiple billing accounts to accommodate different areas, departments, or branches.
+        To ensure these accounts are easily distinguishable, we recommend assigning descriptive account names to differentiate them.
+
+
+        ## Environments
+
+        ### Testing
+
+        [https://api.sandbox.two.inc](https://api.sandbox.two.inc/v1/health)
+
+        Note: Read about our [sandbox environment specific behaviour](/docs/guides/sandbox-behaviour-page/).
+
+        ### Production
+
+        [https://api.two.inc](https://api.two.inc/v1/health)
+tags:
+-   name: Create Billing Account
+-   name: Update Billing Account
+-   name: Get Billing Account Details
+-   name: Get Billing Accounts
+-   name: Billing Statement
+paths:
+    /billing/v1/account:
+        post:
+            summary: Create new billing account handler
+            operationId: create_billing_account.post
+            description: The endpoint `POST /billing/v1/account` enables the merchant
+                to create a new billing account for a specific buyer. A billing account
+                is a record of financial transactions for goods or services that a
+                customer or client has received and owes payment for. This endpoint
+                allows you to configure the terms and configuration of the billing
+                account through the request body. Key configurations include, the
+                billing account `schedule`, `due_in_days`, `currency`, `invoice_email`
+                , `cc_email_addresses`, `primary_email_addresses`, `generation_delay_days`,
+                `send_introduction_email` and the `buyer_company` By default, an introduction
+                email is sent when the billing account is created. Set `send_introduction_email`
+                to `false` to skip sending this initial email.
+            tags:
+            - Create Billing Account
+            parameters: []
+            responses:
+                default:
+                    description: Error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorResponse'
+                '201':
+                    description: Create billing account
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/BillingAccountResponse'
+            security:
+            -   X-Api-Key: []
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/CreateBillingAccountRequest'
+    /billing/v1/account/{id}:
+        patch:
+            summary: Update billing account handler
+            operationId: update_billing_account.patch
+            description: 'Note: To update primary_email_addresses, cc_email_addresses,
+                trade_names the request body must include all new values, including
+                values that are not being updated. So if you are adding or removing
+                even a single email to the emailing lists (`primary_email_addresses`
+                & `cc_email_addresses`), the entire list must be provided with the
+                updates you need to make.'
+            tags:
+            - Update Billing Account
+            parameters:
+            -   name: id
+                in: path
+                required: true
+                schema:
+                    type: string
+                description: The ID of the billing account to be updated
+            responses:
+                default:
+                    description: Error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorResponse'
+                '200':
+                    description: Update billing account
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/BillingAccountResponse'
+                '404':
+                    description: The billing account with the given ID was not found
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+            security:
+            -   X-Api-Key: []
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/UpdateBillingAccountRequest'
+        get:
+            summary: Get billing account by ID.
+            operationId: get_billing_account.get
+            description: The endpoint `/billing/v1/account/{id}` allows you to fetch
+                the details for a given billing account that has been specified by
+                its id
+            tags:
+            - Get Billing Account Details
+            parameters:
+            -   name: id
+                in: path
+                required: true
+                schema:
+                    type: string
+                description: The ID of the billing account to fetch
+            responses:
+                default:
+                    description: Error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorResponse'
+                '200':
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/BillingAccountResponse'
+                '404':
+                    description: The billing account with the given ID was not found
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+            security:
+            -   X-Api-Key: []
+    /billing/v1/accounts:
+        get:
+            summary: Get billing accounts for a company.
+            operationId: get_billing_accounts.get
+            description: The endpoint `/billing/v1/accounts` allows you to fetch all
+                billing accounts associated with a specific buyer company against
+                your merchant.
+            tags:
+            - Get Billing Accounts
+            parameters:
+            -   name: canonical_id
+                in: query
+                schema:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    description: Canonical company identifier. If provided, organization_number
+                        and country code are optional.
+                    title: Canonical Id
+                required: false
+                description: Canonical company identifier. If provided, organization_number
+                    and country code are optional.
+            -   name: organization_number
+                in: query
+                schema:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    description: Organization number of the buyer. Required if canonical_id
+                        is not provided.
+                    title: Organization Number
+                required: false
+                description: Organization number of the buyer. Required if canonical_id
+                    is not provided.
+            -   name: country_code
+                in: query
+                schema:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    description: Country code in ISO 3166-1 alpha-2 format. Required
+                        if canonical_id is not provided.
+                    title: Country Code
+                required: false
+                description: Country code in ISO 3166-1 alpha-2 format. Required if
+                    canonical_id is not provided.
+            responses:
+                default:
+                    description: Error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorResponse'
+                '200':
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/BillingAccountsListResponse'
+            security:
+            -   X-Api-Key: []
+    /billing/v1/account/{account_id}/preview_download:
+        get:
+            summary: Generate previews for billing statements
+            operationId: download_test_preview_for_merchant.get
+            description: 'returns the statement as a file. Can choose period_status
+                by status parameter. This will default to OPEN. Args:     account_id
+                (UUID): Billing account ID'
+            tags:
+            - Billing Statement
+            parameters:
+            -   name: account_id
+                in: path
+                required: true
+                schema:
+                    type: string
+                description: Billing account ID
+            responses:
+                default:
+                    description: Error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorResponse'
+                '200':
+                    description: OK
+                '404':
+                    description: The billing account with the given ID was not found
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+            security:
+            -   X-Api-Key: []
+    /billing/v1/account/{billing_account_id}/period/{period_id}:
+        get:
+            summary: Get billing period summary
+            operationId: get_billing_period_summary.get
+            description: '"Statements" object: Contains all statements issued by Two
+                for this billing period, each statement object reflecting information
+                displayed on the statements the moment they were issued. This section
+                does not change unless a new statement is issued. "Totals" section:
+                Shows the latest reconciliation status of the billing period, and
+                gets updated real-time as each transaction (payments, refunds, etc.)
+                related to invoices in the billing period are reconciled. It shows
+                the current financial status of the billing period, including the
+                currently outstanding balance, and the total payments, total refunds,
+                etc. reconciled against these invoices. To get these details with
+                more granularity, you should subscribe to our webhooks [here](/docs/guides/order-webhooks-api-page/#webhooks-portal
+                "Webhooks portal"). Args:     billing_account_id (str): Billing account
+                identifier     period_id (str): Billing period identifier'
+            tags: []
+            parameters:
+            -   name: billing_account_id
+                in: path
+                required: true
+                schema:
+                    type: string
+                description: Billing account identifier
+            -   name: period_id
+                in: path
+                required: true
+                schema:
+                    type: string
+                description: Billing period identifier
+            responses:
+                default:
+                    description: Error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorResponse'
+                '200':
+                    description: Billing period summary
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/BillingPeriodStatementsSummaryResponse'
+                '404':
+                    description: The billing period with the given attributes was
+                        not found
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+            security:
+            -   X-Api-Key: []
+    /billing/v1/statement:
+        get:
+            summary: Get all grouped payment statements for authenticated merchant.
+            operationId: _make_billing_statements_handler.<locals>.get_billing_statements
+            description: ''
+            tags:
+            - Billing Statement
+            parameters:
+            -   name: billing_account_id
+                in: query
+                schema:
+                    anyOf:
+                    -   format: uuid
+                        type: string
+                    -   type: 'null'
+                    default: null
+                    title: Billing Account Id
+                required: false
+                description: ''
+            -   name: limit
+                in: query
+                schema:
+                    default: 3000
+                    maximum: 1000
+                    minimum: 1
+                    title: Limit
+                    type: integer
+                required: false
+                description: ''
+            -   name: page_cursor
+                in: query
+                schema:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    title: Page Cursor
+                required: false
+                description: ''
+            -   name: search_filter
+                in: query
+                schema:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    title: Search Filter
+                required: false
+                description: ''
+            -   name: due_date_from
+                in: query
+                schema:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    title: Due Date From
+                required: false
+                description: ''
+            -   name: due_date_to
+                in: query
+                schema:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    title: Due Date To
+                required: false
+                description: ''
+            -   name: payment_statuses
+                in: query
+                schema:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    title: Payment Statuses
+                required: false
+                description: ''
+            -   name: downloaded
+                in: query
+                schema:
+                    anyOf:
+                    -   type: boolean
+                    -   type: 'null'
+                    default: null
+                    title: Downloaded
+                required: false
+                description: ''
+            responses:
+                default:
+                    description: Error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorResponse'
+                '200':
+                    description: The list with all grouped payment statements for
+                        authenticated merchant.
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/BillingStatementsResponse'
+            security:
+            -   X-Api-Key: []
+    /billing/v1/statement/{statement_id}/download_url:
+        get:
+            summary: Get the download URL for the statement document.
+            operationId: get_billing_statement_download_url.get
+            description: ''
+            tags:
+            - Billing Statement
+            parameters:
+            -   name: statement_id
+                in: path
+                required: true
+                schema:
+                    type: string
+                description: ''
+            responses:
+                default:
+                    description: Error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorResponse'
+                '200':
+                    description: The download URL for the statement document.
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/BillingStatementDownloadUrlResponse'
+                '404':
+                    description: Statement not found
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+            security:
+            -   X-Api-Key: []
+components:
+    schemas:
+        ErrorResponse:
+            properties:
+                error_code:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    description: An error code related to the error.
+                    title: Error Code
+                error_details:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    description: A detailed description of the error when available.
+                    title: Error Details
+                error_message:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    description: A short description of the error.
+                    title: Error Message
+                error_json:
+                    anyOf:
+                    -   items:
+                            $ref: '#/components/schemas/ErrorJSON'
+                        type: array
+                    -   type: 'null'
+                    default: null
+                    description: A list of errors when available.
+                    title: Error Json
+                error_trace_id:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    description: A unique trace ID for the request that generated
+                        the error. Please quote this trace ID in any support requests.
+                    title: Error Trace Id
+            title: ErrorResponse
+            type: object
+        ErrorJSON:
+            properties:
+                loc:
+                    anyOf:
+                    -   items:
+                            anyOf:
+                            -   type: string
+                            -   type: integer
+                        type: array
+                    -   type: 'null'
+                    default: null
+                    description: Error location.
+                    title: Loc
+                msg:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    description: Error message.
+                    title: Msg
+                type:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    description: Error type.
+                    title: Type
+                ctx:
+                    anyOf:
+                    -   type: string
+                    -   additionalProperties: true
+                        type: object
+                    -   type: 'null'
+                    default: null
+                    description: Error context information.
+                    title: Ctx
+            title: ErrorJSON
+            type: object
+        CreateBillingAccountRequest:
+            properties:
+                primary_email_addresses:
+                    description: List of email addresses set to receive billing account
+                        emails
+                    items:
+                        format: email
+                        type: string
+                    minItems: 1
+                    title: Primary Email Addresses
+                    type: array
+                cc_email_addresses:
+                    anyOf:
+                    -   items:
+                            format: email
+                            type: string
+                        type: array
+                    -   type: 'null'
+                    default: null
+                    description: 'List of CC email addresses set to receive billing
+                        account emails '
+                    title: Cc Email Addresses
+                schedule:
+                    $ref: '#/components/schemas/BillingPeriod'
+                    description: 'An enumeration for choosing the time period at which
+                        grouped invoices will be sent out. Note that `BIWEEKLY` means
+                        twice a month and NOT twice a week.  Enum: `DAILY` `WEEKLY`
+                        `BIWEEKLY` `MONTHLY`.'
+                buyer_company:
+                    $ref: '#/components/schemas/CompanySchema'
+                    description: The company for which the billing account is being
+                        created
+                due_in_days:
+                    description: Due in days to allow for the monthly billing schedule,
+                        can be greater than or equal to 5 and less than or equal to
+                        60
+                    maximum: 60
+                    minimum: 5
+                    title: Due In Days
+                    type: integer
+                currency:
+                    $ref: '#/components/schemas/CurrencyEnum'
+                    description: Currency code in ISO 4217 format. E.g. 'NOK'
+                generation_delay_days:
+                    default: 4
+                    description: Number of days to delay the grouped invoice being
+                        sent out
+                    minimum: 0
+                    title: Generation Delay Days
+                    type: integer
+                account_name:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    description: A name to identify the billing account
+                    title: Account Name
+                phone_number:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    description: Phone number that should be used to contact the account
+                        holder
+                    title: Phone Number
+                send_introduction_email:
+                    default: true
+                    description: Whether to send the billing account introduction
+                        email when the account is created. Defaults to `true`; set
+                        to `false` to skip sending this initial email.
+                    title: Send Introduction Email
+                    type: boolean
+            required:
+            - primary_email_addresses
+            - schedule
+            - buyer_company
+            - due_in_days
+            - currency
+            title: CreateBillingAccountRequest
+            type: object
+        BillingPeriod:
+            enum:
+            - DAILY
+            - WEEKLY
+            - MONTHLY
+            - BIWEEKLY
+            title: BillingPeriod
+            type: string
+        CompanySchema:
+            description: |-
+                Standard company schema with required fields for full company identification.
+                Extends NonStrictCompanySchema and makes key fields required.
+            properties:
+                id:
+                    anyOf:
+                    -   format: uuid
+                        type: string
+                    -   type: 'null'
+                    default: null
+                    description: Internal company Id
+                    title: Id
+                country_prefix:
+                    $ref: '#/components/schemas/CountryCodeEnum'
+                    description: Country code in ISO 3166-1 alpha-2 format
+                    examples:
+                    - GB
+                organization_number:
+                    description: National id of the buyer company
+                    title: Organization Number
+                    type: string
+                company_name:
+                    default: null
+                    description: Legal name of the buyer company
+                    maxLength: 255
+                    minLength: 1
+                    title: Company Name
+                    type: string
+                company_type:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    description: Type of company placing the order
+                    title: Company Type
+                company_canonical_id:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    description: Unique canonical ID representing this company
+                    title: Company Canonical Id
+                website:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    description: Company's website
+                    examples:
+                    - https://www.example.com/
+                    title: Website
+            required:
+            - country_prefix
+            - organization_number
+            title: CompanySchema
+            type: object
+        CountryCodeEnum:
+            enum:
+            - AD
+            - AE
+            - AL
+            - AM
+            - AO
+            - AR
+            - AT
+            - AU
+            - AZ
+            - BA
+            - BB
+            - BD
+            - BE
+            - BF
+            - BG
+            - BH
+            - BI
+            - BJ
+            - BN
+            - BO
+            - BR
+            - BS
+            - BW
+            - CA
+            - CG
+            - CH
+            - CL
+            - CM
+            - CO
+            - CR
+            - CY
+            - CZ
+            - DE
+            - DJ
+            - DK
+            - DO
+            - DZ
+            - EC
+            - EE
+            - EG
+            - ES
+            - ET
+            - FI
+            - FJ
+            - FR
+            - GA
+            - GB
+            - GE
+            - GH
+            - GN
+            - GQ
+            - GR
+            - GT
+            - GY
+            - HN
+            - HR
+            - HT
+            - HU
+            - ID
+            - IE
+            - IL
+            - IN
+            - IQ
+            - IS
+            - IT
+            - JM
+            - JO
+            - JP
+            - KE
+            - KG
+            - KH
+            - KR
+            - KW
+            - KZ
+            - LA
+            - LB
+            - LI
+            - LK
+            - LT
+            - LU
+            - LV
+            - LR
+            - MA
+            - MC
+            - MD
+            - ME
+            - MG
+            - MK
+            - MN
+            - MR
+            - MT
+            - MU
+            - MV
+            - MW
+            - MX
+            - MY
+            - MZ
+            - NA
+            - NE
+            - NG
+            - NL
+            - 'NO'
+            - NP
+            - NZ
+            - OM
+            - PA
+            - PE
+            - PG
+            - PH
+            - PK
+            - PL
+            - PT
+            - PY
+            - QA
+            - RO
+            - RS
+            - RW
+            - SA
+            - SE
+            - SG
+            - SI
+            - SK
+            - SL
+            - SN
+            - SR
+            - SV
+            - SZ
+            - TD
+            - TG
+            - TH
+            - TJ
+            - TM
+            - TN
+            - TR
+            - TT
+            - TZ
+            - UA
+            - UG
+            - US
+            - UY
+            - UZ
+            - VN
+            - ZA
+            - ZM
+            title: CountryCodeEnum
+            type: string
+        CurrencyEnum:
+            enum:
+            - CHF
+            - CZK
+            - DKK
+            - EUR
+            - GBP
+            - INR
+            - MXN
+            - NOK
+            - PLN
+            - RON
+            - SEK
+            - USD
+            title: CurrencyEnum
+            type: string
+        BillingAccountResponse:
+            properties:
+                primary_email_addresses:
+                    description: List of email addresses set to receive billing account
+                        emails
+                    items:
+                        format: email
+                        type: string
+                    title: Primary Email Addresses
+                    type: array
+                cc_email_addresses:
+                    anyOf:
+                    -   items:
+                            format: email
+                            type: string
+                        type: array
+                    -   type: 'null'
+                    default: null
+                    description: 'List of CC email addresses set to receive billing
+                        account emails '
+                    title: Cc Email Addresses
+                schedule:
+                    $ref: '#/components/schemas/BillingPeriod'
+                    description: 'An enumeration for choosing the time period at which
+                        grouped invoices will be sent out. Note that `BIWEEKLY` means
+                        twice a month and NOT twice a week.  Enum: `DAILY` `WEEKLY`
+                        `BIWEEKLY` `MONTHLY`.'
+                buyer_company:
+                    $ref: '#/components/schemas/CompanySchema'
+                    description: The company for which the billing account is being
+                        created
+                due_in_days:
+                    description: Due in days to allow for the monthly billing schedule,
+                        can be greater than or equal to 5 and less than or equal to
+                        60
+                    title: Due In Days
+                    type: integer
+                currency:
+                    $ref: '#/components/schemas/CurrencyEnum'
+                    description: Currency code in ISO 4217 format. E.g. 'NOK'
+                generation_delay_days:
+                    anyOf:
+                    -   minimum: 0
+                        type: integer
+                    -   type: 'null'
+                    default: 4
+                    description: Number of days to delay the grouped invoice being
+                        sent out
+                    title: Generation Delay Days
+                account_name:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    description: A name to identify the billing account
+                    title: Account Name
+                phone_number:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    description: Phone number for contacting the account holder
+                    title: Phone Number
+                id:
+                    description: A globally unique billing account ID set by Two
+                    format: uuid
+                    title: Id
+                    type: string
+            required:
+            - primary_email_addresses
+            - schedule
+            - buyer_company
+            - due_in_days
+            - currency
+            - id
+            title: BillingAccountResponse
+            type: object
+        UpdateBillingAccountRequest:
+            properties:
+                due_in_days:
+                    anyOf:
+                    -   maximum: 60
+                        minimum: 5
+                        type: integer
+                    -   type: 'null'
+                    default: null
+                    description: Due in days to allow for the monthly billing schedule,
+                        can be greater than or equal to 5 and less than or equal to
+                        60
+                    title: Due In Days
+                generation_delay_days:
+                    anyOf:
+                    -   minimum: 0
+                        type: integer
+                    -   type: 'null'
+                    default: 4
+                    description: Number of days to delay the grouped invoice being
+                        sent out
+                    title: Generation Delay Days
+                primary_email_addresses:
+                    anyOf:
+                    -   items:
+                            format: email
+                            type: string
+                        minItems: 1
+                        type: array
+                    -   type: 'null'
+                    default: null
+                    description: List of email addresses set to receive billing account
+                        emails
+                    title: Primary Email Addresses
+                cc_email_addresses:
+                    anyOf:
+                    -   items:
+                            format: email
+                            type: string
+                        type: array
+                    -   type: 'null'
+                    default: null
+                    description: List of CC email addresses set to receive billing
+                        account emails
+                    title: Cc Email Addresses
+                account_name:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    description: A name to identify the billing account
+                    title: Account Name
+                phone_number:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    description: Phone number for contacting the account holder
+                    title: Phone Number
+            title: UpdateBillingAccountRequest
+            type: object
+        Error:
+            properties:
+                error_message:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    description: A description of the error
+                    title: Error Message
+            title: Error
+            type: object
+        BillingAccountsQuerySchema:
+            description: Query schema for billing accounts lookup by company identifiers.
+            properties:
+                canonical_id:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    description: Canonical company identifier. If provided, organization_number
+                        and country code are optional.
+                    title: Canonical Id
+                organization_number:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    description: Organization number of the buyer. Required if canonical_id
+                        is not provided.
+                    title: Organization Number
+                country_code:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    description: Country code in ISO 3166-1 alpha-2 format. Required
+                        if canonical_id is not provided.
+                    title: Country Code
+            title: BillingAccountsQuerySchema
+            type: object
+        BillingAccountsListResponse:
+            description: Response schema for listing billing accounts
+            properties:
+                data:
+                    description: List of billing accounts
+                    items:
+                        $ref: '#/components/schemas/BillingAccountResponse'
+                    title: Data
+                    type: array
+            required:
+            - data
+            title: BillingAccountsListResponse
+            type: object
+        BillingPeriodStatementsSummaryResponse:
+            properties:
+                id:
+                    description: The ID of the billing period
+                    title: Id
+                    type: string
+                billing_account_id:
+                    description: The ID of the billing account
+                    title: Billing Account Id
+                    type: string
+                start_date:
+                    description: The start date of the billing period
+                    format: date
+                    title: Start Date
+                    type: string
+                end_date:
+                    anyOf:
+                    -   format: date
+                        type: string
+                    -   type: 'null'
+                    default: null
+                    description: The end date of the billing period
+                    title: End Date
+                currency:
+                    $ref: '#/components/schemas/CurrencyEnum'
+                    description: The currency
+                totals:
+                    $ref: '#/components/schemas/BillingStatementTotalsSchema'
+                statements:
+                    items:
+                        $ref: '#/components/schemas/StatementsSummarySchema'
+                    title: Statements
+                    type: array
+                bank_account:
+                    $ref: '#/components/schemas/BillingPeriodBankAccountSchema'
+            required:
+            - id
+            - billing_account_id
+            - start_date
+            - currency
+            - totals
+            - statements
+            - bank_account
+            title: BillingPeriodStatementsSummaryResponse
+            type: object
+        BillingPeriodBankAccountSchema:
+            description: Bank account details for the expected payment for the billing
+                period oustanding amount
+            properties:
+                payment_reference:
+                    description: The payment reference that should be use for bank
+                        transfer
+                    title: Payment Reference
+                    type: string
+                account_name:
+                    description: The recipient account name
+                    title: Account Name
+                    type: string
+                account_number:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    title: Account Number
+                sort_code:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    title: Sort Code
+                iban:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    title: Iban
+                bban:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    title: Bban
+                bic:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    title: Bic
+            required:
+            - payment_reference
+            - account_name
+            title: BillingPeriodBankAccountSchema
+            type: object
+        BillingStatementTotalsSchema:
+            description: The totals of all statements in the billing period.
+            properties:
+                invoiced_amount:
+                    description: The total amount invoiced in the given billing period
+                    format: decimal
+                    pattern: ^-?[0-9]+(\.[0-9]{0,2})?
+                    title: Invoiced Amount
+                    type: string
+                paid_amount:
+                    description: Total amount paid in the given billing period
+                    format: decimal
+                    pattern: ^-?[0-9]+(\.[0-9]{0,2})?
+                    title: Paid Amount
+                    type: string
+                credited_amount:
+                    description: Total amount credited in the given billing period
+                    format: decimal
+                    pattern: ^-?[0-9]+(\.[0-9]{0,2})?
+                    title: Credited Amount
+                    type: string
+                collected_amount:
+                    description: Total amount collected in the given billing period
+                    format: decimal
+                    pattern: ^-?[0-9]+(\.[0-9]{0,2})?
+                    title: Collected Amount
+                    type: string
+                recoursed_amount:
+                    description: Total amount recoursed in the given billing period
+                    format: decimal
+                    pattern: ^-?[0-9]+(\.[0-9]{0,2})?
+                    title: Recoursed Amount
+                    type: string
+                outstanding_amount:
+                    description: Total outstanding amount in the given billing period
+                    format: decimal
+                    pattern: ^-?[0-9]+(\.[0-9]{0,2})?
+                    title: Outstanding Amount
+                    type: string
+                last_updated:
+                    description: The last time the totals were updated
+                    format: date-time
+                    title: Last Updated
+                    type: string
+            required:
+            - invoiced_amount
+            - paid_amount
+            - credited_amount
+            - collected_amount
+            - recoursed_amount
+            - outstanding_amount
+            - last_updated
+            title: BillingStatementTotalsSchema
+            type: object
+        StatementsSummarySchema:
+            description: An overview of a single statement within a given billing
+                period.
+            properties:
+                statement_id:
+                    description: The ID of the statement
+                    title: Statement Id
+                    type: string
+                statement_number:
+                    description: The statement document number
+                    title: Statement Number
+                    type: integer
+                statement_suffix:
+                    description: The statement document letter, indicating the version
+                    title: Statement Suffix
+                    type: string
+                statement_reference:
+                    description: The statement document reference, the number and
+                        suffix concatenated
+                    title: Statement Reference
+                    type: string
+                statement_creation_reason:
+                    description: The reason the statement document was created for
+                        the billing period.
+                    title: Statement Creation Reason
+                    type: string
+                issue_date:
+                    description: The date the statement was issued
+                    format: date
+                    title: Issue Date
+                    type: string
+                due_date:
+                    anyOf:
+                    -   format: date
+                        type: string
+                    -   type: 'null'
+                    default: null
+                    description: The date the statement is due
+                    title: Due Date
+                buyer_company_name:
+                    description: The name of the buyer company
+                    title: Buyer Company Name
+                    type: string
+                payment_reference:
+                    description: The payment reference of the statement
+                    title: Payment Reference
+                    type: string
+                total_amount:
+                    description: The total amount of the statement
+                    format: decimal
+                    pattern: ^-?[0-9]+(\.[0-9]{0,2})?
+                    title: Total Amount
+                    type: string
+                outstanding_amount:
+                    description: The outstanding amount of the statement
+                    format: decimal
+                    pattern: ^-?[0-9]+(\.[0-9]{0,2})?
+                    title: Outstanding Amount
+                    type: string
+                last_downloaded:
+                    anyOf:
+                    -   format: date-time
+                        type: string
+                    -   type: 'null'
+                    default: null
+                    description: The date statement was last downloaded by the recipient
+                    title: Last Downloaded
+            required:
+            - statement_id
+            - statement_number
+            - statement_suffix
+            - statement_reference
+            - statement_creation_reason
+            - issue_date
+            - buyer_company_name
+            - payment_reference
+            - total_amount
+            - outstanding_amount
+            title: StatementsSummarySchema
+            type: object
+        GetBillingStatementsQueryParams:
+            properties:
+                billing_account_id:
+                    anyOf:
+                    -   format: uuid
+                        type: string
+                    -   type: 'null'
+                    default: null
+                    title: Billing Account Id
+                limit:
+                    default: 3000
+                    maximum: 1000
+                    minimum: 1
+                    title: Limit
+                    type: integer
+                page_cursor:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    title: Page Cursor
+                search_filter:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    title: Search Filter
+                due_date_from:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    title: Due Date From
+                due_date_to:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    title: Due Date To
+                payment_statuses:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    title: Payment Statuses
+                downloaded:
+                    anyOf:
+                    -   type: boolean
+                    -   type: 'null'
+                    default: null
+                    title: Downloaded
+            title: GetBillingStatementsQueryParams
+            type: object
+        BillingStatementsResponse:
+            properties:
+                statements:
+                    items:
+                        $ref: '#/components/schemas/BillingStatementResponse'
+                    title: Statements
+                    type: array
+                cursor_page_metadata:
+                    anyOf:
+                    -   $ref: '#/components/schemas/CursorPageMetadata'
+                    -   type: 'null'
+                    default: null
+            required:
+            - statements
+            title: BillingStatementsResponse
+            type: object
+        BillingStatementResponse:
+            properties:
+                statement_id:
+                    format: uuid
+                    title: Statement Id
+                    type: string
+                statement_number:
+                    title: Statement Number
+                    type: integer
+                statement_reference:
+                    title: Statement Reference
+                    type: string
+                buyer_company_name:
+                    title: Buyer Company Name
+                    type: string
+                start_date:
+                    format: date-time
+                    title: Start Date
+                    type: string
+                end_date:
+                    format: date-time
+                    title: End Date
+                    type: string
+                payment_status:
+                    $ref: '#/components/schemas/PaymentStatusEnum'
+                payment_reference:
+                    title: Payment Reference
+                    type: string
+                total_amount:
+                    format: decimal
+                    pattern: ^-?[0-9]+(\.[0-9]{0,2})?
+                    title: Total Amount
+                    type: string
+                last_downloaded:
+                    anyOf:
+                    -   format: date-time
+                        type: string
+                    -   type: 'null'
+                    default: null
+                    title: Last Downloaded
+                statement_type:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    title: Statement Type
+                issue_date:
+                    format: date
+                    title: Issue Date
+                    type: string
+                due_date:
+                    anyOf:
+                    -   format: date
+                        type: string
+                    -   type: 'null'
+                    default: null
+                    title: Due Date
+                currency:
+                    $ref: '#/components/schemas/CurrencyEnum'
+                unreconciled_amount:
+                    anyOf:
+                    -   format: decimal
+                        pattern: ^-?[0-9]+(\.[0-9]{0,2})?
+                        type: string
+                    -   type: 'null'
+                    default: null
+                    title: Unreconciled Amount
+                statement_pis_link:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                    default: null
+                    title: Statement Pis Link
+                trade_names:
+                    anyOf:
+                    -   items:
+                            type: string
+                        type: array
+                    -   type: 'null'
+                    default: null
+                    title: Trade Names
+                billing_account_id:
+                    format: uuid
+                    title: Billing Account Id
+                    type: string
+                billing_period_id:
+                    format: uuid
+                    title: Billing Period Id
+                    type: string
+                creation_reason:
+                    title: Creation Reason
+                    type: string
+            required:
+            - statement_id
+            - statement_number
+            - statement_reference
+            - buyer_company_name
+            - start_date
+            - end_date
+            - payment_status
+            - payment_reference
+            - total_amount
+            - issue_date
+            - currency
+            - billing_account_id
+            - billing_period_id
+            - creation_reason
+            title: BillingStatementResponse
+            type: object
+        CursorPageMetadata:
+            properties:
+                previous_page_cursor:
+                    anyOf:
+                    -   minLength: 1
+                        type: string
+                    -   type: 'null'
+                    default: cursor to the previous page
+                    title: Previous Page Cursor
+                next_page_cursor:
+                    anyOf:
+                    -   minLength: 1
+                        type: string
+                    -   type: 'null'
+                    default: cursor to the next page
+                    title: Next Page Cursor
+                limit:
+                    description: The maximum number of items on a single page, ie
+                        the page size.
+                    minimum: 0
+                    title: Limit
+                    type: integer
+            required:
+            - limit
+            title: CursorPageMetadata
+            type: object
+        PaymentStatusEnum:
+            enum:
+            - NOT_PAID
+            - PAID
+            - PARTIAL_PAYMENT
+            - OVERDUE
+            - IN_COLLECTIONS
+            - CANCELLED
+            - REFUNDED
+            - PARTIAL_REFUND
+            - RECOURSED
+            - PARTIAL_RECOURSE
+            title: PaymentStatusEnum
+            type: string
+        BillingStatementDownloadUrlResponse:
+            properties:
+                url:
+                    title: Url
+                    type: string
+            required:
+            - url
+            title: BillingStatementDownloadUrlResponse
+            type: object
+    securitySchemes:
+        X-Api-Key:
+            type: apiKey
+            description: |-
+                For instructions on how to obtain API keys, visit [this page](/docs/guides/getting-api-keys-page/).
+                You will obtain two different keys, an initial one for testing in our sandbox environment and once ready, for production.
+                Your API keys enables others to act on your behalf if they are able to obtain them, so make sure to keep them safe.
+                Your API key is not to be shared with anyone, including in your version control system, client-side code, in public chatrooms and so on.
+                The API key is applied in the request header. For example:
+                ```
+                GET /something
+                X-Api-Key: secret_test_aabbccddeeff0123456789
+                ```
+
+                API Keys have the following structure: `secret_<env>_<key>` where:
+                - `env` is determined by the environment (`prod` for production, `test` for test environments)
+                - `key` is a random, URL-safe, 64-bit encoded text string containing 32 random bytes.
+            name: X-Api-Key
+            in: header
+servers:
+-   url: https://api.sandbox.two.inc
+    description: Testing
+-   url: https://api.two.inc
+    description: Production
+security: []
