@@ -232,12 +232,9 @@ func LoadFile() (*File, error) {
 // chmod'd to 0o700 and the file itself to 0o600 so other users on shared
 // hosts can't read context URLs (or any future cached state).
 //
-// Note on concurrency: os.Rename is atomic against crashes but not against
-// concurrent writers. Two twoctl invocations racing on `config.yaml` (e.g.
-// a background `config use-context` while a foreground `auth login` runs)
-// would lose the earlier update. We do not flock today; the race window is
-// small and the realistic blast radius is "user re-runs the lost command".
-// Tracked in INF-1318 (Han-9).
+// Callers that mutate config (SetContext / UseContext / DeleteContext)
+// wrap the load-modify-write cycle in withLock(); SaveFile itself is the
+// final atomic step (CreateTemp + Rename).
 func SaveFile(f *File) error {
 	p, err := filePath()
 	if err != nil {
@@ -279,27 +276,35 @@ func SaveFile(f *File) error {
 var contextNameRe = regexp.MustCompile(`^[a-z0-9][a-z0-9._-]{0,62}$`)
 
 // SetContext inserts or replaces a context. If apiKey is non-empty it is
-// stored in the keychain under that context's account.
+// stored in the keychain under that context's account. The full read-
+// modify-write cycle holds an exclusive flock on config.yaml.lock so two
+// concurrent twoctl runs don't lose each other's updates.
 func SetContext(name, baseURL, apiKey string) error {
 	if !contextNameRe.MatchString(name) {
 		return fmt.Errorf("invalid context name %q: must match %s", name, contextNameRe)
 	}
-	cfg, err := LoadFile()
+	p, err := filePath()
 	if err != nil {
 		return err
 	}
-	if baseURL == "" {
-		baseURL = inferURL(name)
-	}
-	clean, err := safeURL(baseURL)
-	if err != nil {
-		return err
-	}
-	cfg.Contexts[name] = Context{Name: name, BaseURL: clean}
-	if cfg.CurrentContext == "" {
-		cfg.CurrentContext = name
-	}
-	if err := SaveFile(cfg); err != nil {
+	if err := withLock(p, func() error {
+		cfg, err := LoadFile()
+		if err != nil {
+			return err
+		}
+		if baseURL == "" {
+			baseURL = inferURL(name)
+		}
+		clean, err := safeURL(baseURL)
+		if err != nil {
+			return err
+		}
+		cfg.Contexts[name] = Context{Name: name, BaseURL: clean}
+		if cfg.CurrentContext == "" {
+			cfg.CurrentContext = name
+		}
+		return SaveFile(cfg)
+	}); err != nil {
 		return err
 	}
 	if apiKey != "" {
@@ -309,32 +314,45 @@ func SetContext(name, baseURL, apiKey string) error {
 }
 
 // UseContext switches the current context. The context must already exist.
+// Held under config.yaml.lock for the read-modify-write window.
 func UseContext(name string) error {
-	cfg, err := LoadFile()
+	p, err := filePath()
 	if err != nil {
 		return err
 	}
-	if _, ok := cfg.Contexts[name]; !ok {
-		return fmt.Errorf("context %q does not exist (see `twoctl config get-contexts`)", name)
-	}
-	cfg.CurrentContext = name
-	return SaveFile(cfg)
+	return withLock(p, func() error {
+		cfg, err := LoadFile()
+		if err != nil {
+			return err
+		}
+		if _, ok := cfg.Contexts[name]; !ok {
+			return fmt.Errorf("context %q does not exist (see `twoctl config get-contexts`)", name)
+		}
+		cfg.CurrentContext = name
+		return SaveFile(cfg)
+	})
 }
 
 // DeleteContext removes a context and its keychain entry.
 func DeleteContext(name string) error {
-	cfg, err := LoadFile()
+	p, err := filePath()
 	if err != nil {
 		return err
 	}
-	if _, ok := cfg.Contexts[name]; !ok {
-		return fmt.Errorf("context %q does not exist", name)
-	}
-	delete(cfg.Contexts, name)
-	if cfg.CurrentContext == name {
-		cfg.CurrentContext = ""
-	}
-	if err := SaveFile(cfg); err != nil {
+	if err := withLock(p, func() error {
+		cfg, err := LoadFile()
+		if err != nil {
+			return err
+		}
+		if _, ok := cfg.Contexts[name]; !ok {
+			return fmt.Errorf("context %q does not exist", name)
+		}
+		delete(cfg.Contexts, name)
+		if cfg.CurrentContext == name {
+			cfg.CurrentContext = ""
+		}
+		return SaveFile(cfg)
+	}); err != nil {
 		return err
 	}
 	return DeleteKey(name)
